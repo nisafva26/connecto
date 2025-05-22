@@ -83,31 +83,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     log('===state : ====$authState');
 
     return Scaffold(
-      backgroundColor: Color(0xFF001311),
-      body: Column(
+  backgroundColor: const Color(0xFF001311),
+  body: LayoutBuilder(
+    builder: (context, constraints) {
+      return Column(
         children: [
           Expanded(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0)
+            child: SingleChildScrollView(
+               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0)
                   .copyWith(top: 40),
-              child: AnimatedSwitcher(
-                duration: Duration(milliseconds: 500),
-                transitionBuilder: (widget, animation) {
-                  return FadeTransition(opacity: animation, child: widget);
-                },
-                child: (authState == AuthState.otpSent ||
-                        authState == AuthState.otpError ||
-                        authState == AuthState.verifying)
-                    ? buildOTPInput()
-                    : buildPhoneNumberInput(),
+              child: IntrinsicHeight(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 500),
+                  transitionBuilder: (widget, animation) {
+                    return FadeTransition(opacity: animation, child: widget);
+                  },
+                  child: (authState == AuthState.otpSent ||
+                          authState == AuthState.otpError ||
+                          authState == AuthState.verifying)
+                      ? buildOTPInput()
+                      : buildPhoneNumberInput(),
+                ),
               ),
             ),
           ),
-          buildCustomNumberPad(),
-          SizedBox(height: 10),
+          buildCustomNumberPad(), // stays fixed below
+          const SizedBox(height: 10),
         ],
-      ),
-    );
+      );
+    },
+  ),
+);
+
   }
 
   Widget buildPhoneNumberInput() {
@@ -166,7 +173,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             });
           },
         ),
-        Spacer(),
+        // Spacer(),
+        SizedBox(height: 20),
         ContinueButton(
           onPressed:
               // ref.watch(authProvider) == AuthState.sendingOtp
@@ -314,7 +322,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 15).copyWith(top: 0),
       child: GridView.builder(
-        padding: EdgeInsets.symmetric(vertical: 8).copyWith(bottom: 25),
+        padding: EdgeInsets.symmetric(vertical: 8).copyWith(bottom: 18),
         shrinkWrap: true,
         physics: NeverScrollableScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(

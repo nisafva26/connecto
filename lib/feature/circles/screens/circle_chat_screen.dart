@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connecto/feature/circles/models/circle_model.dart';
 import 'package:connecto/feature/circles/models/group_message_model.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
-import 'package:connecto/feature/pings/model/message_model.dart';
 import 'package:connecto/feature/pings/model/ping_model.dart';
 import 'package:connecto/feature/pings/screens/ping_list_screen.dart';
 import 'package:connecto/feature/pings/widgets/ping_visualizer_chat.dart';
@@ -11,6 +10,7 @@ import 'package:connecto/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 class GroupPingChatScreen extends ConsumerWidget {
@@ -95,7 +95,7 @@ class GroupPingChatScreen extends ConsumerWidget {
                 // 🔙 Back Button
                 IconButton(
                   icon: Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => context.pop(),
                 ),
                 // Spacer(flex: 1,),
 

@@ -1,13 +1,11 @@
-import 'dart:developer';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:connecto/feature/circles/controller/circle_notifier.dart';
 import 'package:connecto/feature/circles/models/circle_model.dart';
 import 'package:connecto/feature/circles/widgets/add_circle_modal.dart';
 import 'package:connecto/feature/circles/widgets/circle_tile.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:loading_indicator/loading_indicator.dart';
 
 //fetching circles
 
@@ -40,7 +38,6 @@ class CircleListScreen extends ConsumerWidget {
 
     // log('====circle async === $circlesAsync');
 
-    final user = FirebaseAuth.instance.currentUser!.uid;
     // log('cuurent user : $user');
 
     return Expanded(
@@ -61,12 +58,20 @@ class CircleListScreen extends ConsumerWidget {
                 physics: NeverScrollableScrollPhysics(),
                 children: [
                   ...circles.map((circle) {
-                    return buildCircleTile(circle,context);
+                    return buildCircleTile(circle, context);
                   }),
                 ],
               );
             },
-            loading: () => Center(child: CircularProgressIndicator()),
+            loading: () => Center(
+              child: Container(
+                height: 40,
+                child: LoadingIndicator(
+                  indicatorType: Indicator.ballBeat,
+                  colors: [Theme.of(context).colorScheme.primary],
+                ),
+              ),
+            ),
             error: (err, stack) => Center(
                 child: Text("Error loading circles",
                     style: TextStyle(color: Colors.red))),

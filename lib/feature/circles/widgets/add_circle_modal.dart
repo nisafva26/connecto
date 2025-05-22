@@ -3,10 +3,11 @@ import 'dart:developer';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
 import 'package:connecto/helper/get_initials.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:contacts_service/contacts_service.dart';
+// import 'package:contacts_service/contacts_service.dart';
 
 class AddCircleModal extends ConsumerStatefulWidget {
   const AddCircleModal({super.key});
@@ -47,7 +48,8 @@ class _AddCircleModalState extends ConsumerState<AddCircleModal> {
   /// Fetch contacts
   Future<void> _fetchContacts() async {
     try {
-      List<Contact> fetchedContacts = (await ContactsService.getContacts())
+      List<Contact> fetchedContacts = (await FlutterContacts.getContacts(
+              withProperties: true))
           .where((c) => c.phones!.isNotEmpty) // Filter contacts without numbers
           .toList();
       setState(() {
@@ -66,7 +68,7 @@ class _AddCircleModalState extends ConsumerState<AddCircleModal> {
       filteredContacts = contacts.where((contact) {
         String name = contact.displayName?.toLowerCase() ?? '';
         String number =
-            contact.phones!.isNotEmpty ? contact.phones!.first.value! : '';
+            contact.phones!.isNotEmpty ? contact.phones!.first.number : '';
         return name.contains(query) || number.contains(query);
       }).toList();
     });
@@ -331,7 +333,7 @@ class _AddCircleModalState extends ConsumerState<AddCircleModal> {
                                 itemBuilder: (context, index) {
                                   final contact = filteredContacts[index];
                                   final phone = contact.phones!.isNotEmpty
-                                      ? contact.phones!.first.value
+                                      ? contact.phones!.first.number
                                       : "No Number";
                                   final isSelected = selectedContacts
                                       .any((c) => c['phoneNumber'] == phone);
@@ -353,12 +355,16 @@ class _AddCircleModalState extends ConsumerState<AddCircleModal> {
                                             left: 28, right: 23),
                                         leading: CircleAvatar(
                                           backgroundColor: Colors.grey[800],
-                                          child: contact.avatar != null &&
-                                                  contact.avatar!.isNotEmpty
+                                          child: contact.photoOrThumbnail !=
+                                                      null &&
+                                                  contact.photoOrThumbnail!
+                                                      .isNotEmpty
                                               ? ClipOval(
-                                                  child: Image.memory(
-                                                      contact.avatar!))
-                                              : Text(contact.initials(),
+                                                  child: Image.memory(contact
+                                                      .photoOrThumbnail!))
+                                              : Text(
+                                                  getInitials(
+                                                      contact.displayName),
                                                   style: TextStyle(
                                                       color: Colors.white)),
                                         ),

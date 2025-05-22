@@ -1,7 +1,11 @@
+import 'dart:developer';
+
+import 'package:connecto/helper/get_initials.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:contacts_service/contacts_service.dart';
+// import 'package:contacts_service/contacts_service.dart';
 
 void showAddFriendModal(BuildContext context) {
   showModalBottomSheet(
@@ -35,6 +39,7 @@ class _AddFriendModalState extends State<AddFriendModal> {
   Future<void> requestContactsPermission() async {
     PermissionStatus status = await Permission.contacts.request();
     if (status.isGranted) {
+      print('persimmison granted');
       _fetchContacts();
     } else if (status.isDenied) {
       print("❌ Contacts permission denied");
@@ -47,9 +52,14 @@ class _AddFriendModalState extends State<AddFriendModal> {
   /// Fetch contacts
   Future<void> _fetchContacts() async {
     try {
-      List<Contact> fetchedContacts = (await ContactsService.getContacts())
-          .where((c) => c.phones!.isNotEmpty) // Filter contacts without numbers
-          .toList();
+      List<Contact> fetchedContacts =
+          (await FlutterContacts.getContacts(withProperties: true)).where((c) {
+        log(c.toString());
+        return c.phones.isNotEmpty;
+      }) // Filter contacts without numbers
+              .toList();
+
+      log('fetched contatcs : $fetchedContacts');
       setState(() {
         contacts = fetchedContacts;
         filteredContacts = contacts;
@@ -66,7 +76,7 @@ class _AddFriendModalState extends State<AddFriendModal> {
       filteredContacts = contacts.where((contact) {
         String name = contact.displayName?.toLowerCase() ?? '';
         String number =
-            contact.phones!.isNotEmpty ? contact.phones!.first.value! : '';
+            contact.phones!.isNotEmpty ? contact.phones!.first.number! : '';
         return name.contains(query) || number.contains(query);
       }).toList();
     });
@@ -190,7 +200,7 @@ class _AddFriendModalState extends State<AddFriendModal> {
                           itemBuilder: (context, index) {
                             final contact = filteredContacts[index];
                             final phone = contact.phones!.isNotEmpty
-                                ? contact.phones!.first.value
+                                ? contact.phones!.first.number
                                 : "No Number";
                             final isSelected = phone == selectedPhoneNumber;
 
@@ -213,12 +223,12 @@ class _AddFriendModalState extends State<AddFriendModal> {
                                       EdgeInsets.only(left: 28, right: 23),
                                   leading: CircleAvatar(
                                     backgroundColor: Colors.grey[800],
-                                    child: contact.avatar != null &&
-                                            contact.avatar!.isNotEmpty
+                                    child: contact.photoOrThumbnail != null &&
+                                            contact.photoOrThumbnail!.isNotEmpty
                                         ? ClipOval(
-                                            child:
-                                                Image.memory(contact.avatar!))
-                                        : Text(contact.initials(),
+                                            child: Image.memory(
+                                                contact.photoOrThumbnail!))
+                                        : Text(getInitials(contact.displayName),
                                             style:
                                                 TextStyle(color: Colors.white)),
                                   ),

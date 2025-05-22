@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:loading_indicator/loading_indicator.dart';
 
 // gathering_providers.dart
 // final pendingGatheringsProvider =
@@ -49,7 +50,6 @@ import 'package:go_router/go_router.dart';
 //           snapshot.docs.map((doc) => GatheringModel.fromDoc(doc)).toList());
 // });
 
-
 final pendingGatheringsProvider =
     StreamProvider.autoDispose<List<GatheringModel>>((ref) async* {
   final uid = FirebaseAuth.instance.currentUser!.uid;
@@ -72,6 +72,7 @@ final pendingGatheringsProvider =
     yield gatheringDocs
         .where((doc) => doc.exists)
         .map((doc) => GatheringModel.fromDoc(doc))
+        .where((g) => g.dateTime.isAfter(DateTime.now()))
         .toList();
   }
 });
@@ -136,87 +137,228 @@ final previousGatheringsProvider =
   }
 });
 
+final publicGatheringsProvider = StreamProvider<List<GatheringModel>>((ref) {
+  final query = FirebaseFirestore.instance
+      .collection('gatherings')
+      .where('isPublic', isEqualTo: true)
+      .where('status', whereIn: ['upcoming', 'confirmed'])
+      .orderBy('dateTime')
+      .snapshots();
 
+  return query.map((snapshot) {
+    return snapshot.docs.map((doc) => GatheringModel.fromDoc(doc)).toList();
+  });
+});
 
-class GatheringsTab extends ConsumerWidget {
+class GatheringsTab extends ConsumerStatefulWidget {
+  const GatheringsTab({super.key});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GatheringsTab> createState() => _GatheringsTabState();
+}
+
+class _GatheringsTabState extends ConsumerState<GatheringsTab> {
+  int _selectedTabIndex = 0;
+  @override
+  Widget build(BuildContext context) {
     final pendingAsync = ref.watch(pendingGatheringsProvider);
     final upcomingAsync = ref.watch(upcomingGatheringsProvider);
     final previousGatheringsAsync = ref.watch(previousGatheringsProvider);
+    final publicGatheringAsync = ref.watch(publicGatheringsProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xff001311),
       appBar: CommonAppBar(),
       body: SafeArea(
         child: ListView(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           children: [
-            SizedBox(height: 16),
-            _buildHeader("Pending Invites"),
-            pendingAsync.when(
-              data: (pendingList) => pendingList.isEmpty
-                  ? EmptyInviteCard(title: "No pending invites")
-                  : Column(
-                      children: pendingList
-                          .map((g) =>
-                              GatheringCard(gathering: g, isPending: true))
-                          .toList(),
+            // const SizedBox(height: 16),
+            Container(
+              height: 52,
+              decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: Color(0xff091F1E)),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => setState(() => _selectedTabIndex = 0),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _selectedTabIndex == 0
+                            ? Theme.of(context).colorScheme.secondary
+                            : Color(0xff091F1E),
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: Text('Your events',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontFamily: 'Inter',
+                              fontWeight: _selectedTabIndex == 1
+                                  ? FontWeight.w400
+                                  : FontWeight.w700,
+                              color: _selectedTabIndex == 0
+                                  ? Color(0xff243443)
+                                  : Color(0xffAAB0B7))),
                     ),
-              loading: () => CircularProgressIndicator(),
-              error: (e, _) => Text("Error loading pending"),
-            ),
-            SizedBox(height: 32),
-            _buildHeader("Upcoming"),
-            upcomingAsync.when(
-              data: (upcomingList) => upcomingList.isEmpty
-                  ? EmptyInviteCard(title: "No upcoming gatherings")
-                  : Column(
-                      children: upcomingList
-                          .map((g) => GatheringCard(
-                                gathering: g,
-                                isPending: false,
-                              ))
-                          .toList(),
+                  ),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => setState(() => _selectedTabIndex = 1),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _selectedTabIndex == 1
+                            ? Theme.of(context).colorScheme.secondary
+                            : const Color(0xff091F1E),
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: publicGatheringAsync.when(
+                        data: (publicList) {
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Public Events',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontFamily: 'Inter',
+                                  fontWeight: _selectedTabIndex == 1
+                                      ? FontWeight.w700
+                                      : FontWeight.w400,
+                                  color: _selectedTabIndex == 1
+                                      ? const Color(0xff243443)
+                                      : const Color(0xffAAB0B7),
+                                ),
+                              ),
+                              if (publicList.isNotEmpty) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.redAccent,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    '${publicList.length}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                )
+                              ]
+                            ],
+                          );
+                        },
+                        loading: () => const Text('Public Events'),
+                        error: (e, _) => const Text('Public Events'),
+                      ),
                     ),
-              loading: () => CircularProgressIndicator(),
-              error: (e, _) {
-                log("error : $e");
-                return Text("Error loading upcoming");
-              },
+                  ),
+                ],
+              ),
             ),
-            SizedBox(height: 32),
-            _buildHeader("Previous events"),
-            previousGatheringsAsync.when(
-              data: (list) => list.isEmpty
-                  ? Text('No previous events')
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      physics: NeverScrollableScrollPhysics(),
-                      itemCount: list.length,
-                      itemBuilder: (_, index) {
-                        final gathering = list[index];
-                        return GatheringCard(
-                            gathering: gathering, isPending: false);
-                      },
-                    ),
-              loading: () => CircularProgressIndicator(),
-              error: (e, _) {
-                log('Error : $e');
-                return Text('Error loading previous events $e');
-              },
-            ),
+            const SizedBox(height: 16),
+            if (_selectedTabIndex == 1) ...[
+              // _buildHeader("Public Events"),
+              publicGatheringAsync.when(
+                data: (publicList) => publicList.isEmpty
+                    ? EmptyInviteCard(title: "No public invites")
+                    : Column(
+                        children: publicList
+                            .map((g) =>
+                                GatheringCard(gathering: g, isPending: true))
+                            .toList(),
+                      ),
+                loading: () => _loadingWidget(),
+                error: (e, _) {
+                  log('error : $e');
+                  return Text("Error loading public: $e");
+                },
+              ),
+              const SizedBox(height: 32),
+            ],
+
+            if (_selectedTabIndex == 0) ...[
+              pendingAsync.when(
+                data: (pendingList) => pendingList.isEmpty
+                    ?
+                    // EmptyInviteCard(title: "No pending invites")
+                    SizedBox()
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                            _buildHeader("Pending Invites"),
+                            ...pendingList.map((g) =>
+                                GatheringCard(gathering: g, isPending: true)),
+                            const SizedBox(height: 32),
+                          ]),
+                loading: () => _loadingWidget(),
+                error: (e, _) => Text("Error loading pending: $e"),
+              ),
+              upcomingAsync.when(
+                data: (upcomingList) => upcomingList.isEmpty
+                    ? SizedBox()
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildHeader("Upcoming"),
+                          ...upcomingList.map((g) =>
+                              GatheringCard(gathering: g, isPending: false)),
+                          const SizedBox(height: 32),
+                        ],
+                      ),
+                loading: () => _loadingWidget(),
+                error: (e, _) {
+                  log("error : $e");
+                  return Text("Error loading upcoming: $e");
+                },
+              ),
+              previousGatheringsAsync.when(
+                data: (list) => list.isEmpty
+                    ?
+                    //  const Text('No previous events')
+                    SizedBox()
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildHeader("Previous events"),
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: list.length,
+                            itemBuilder: (_, index) {
+                              final gathering = list[index];
+                              return GatheringCard(
+                                  gathering: gathering, isPending: false);
+                            },
+                          ),
+                        ],
+                      ),
+                loading: () => _loadingWidget(),
+                error: (e, _) {
+                  log('Error : $e');
+                  return Text('Error loading previous events: $e');
+                },
+              ),
+            ]
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Color(0xFF03FFE2),
-        shape: CircleBorder(),
+        backgroundColor: const Color(0xFF03FFE2),
+        shape: const CircleBorder(),
         heroTag: 'fab-1',
-        onPressed: () async {
+        onPressed: () {
           context.go('/gathering/create-gathering-circle');
         },
-        child: Icon(Icons.add, size: 20),
+        child: const Icon(Icons.calendar_today, size: 20),
       ),
     );
   }
@@ -226,11 +368,23 @@ class GatheringsTab extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         title,
-        style: TextStyle(
+        style: const TextStyle(
           color: Colors.white,
           fontSize: 16,
           fontFamily: 'SFPRO',
           fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  Widget _loadingWidget() {
+    return const Center(
+      child: SizedBox(
+        height: 40,
+        child: LoadingIndicator(
+          indicatorType: Indicator.ballBeat,
+          colors: [Colors.white],
         ),
       ),
     );

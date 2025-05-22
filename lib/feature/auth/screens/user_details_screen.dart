@@ -247,131 +247,136 @@ class _UserDetailsScreenState extends ConsumerState<UserDetailsScreen> {
     return Scaffold(
       backgroundColor: Color(0xFF001311), // Dark theme background
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Tell us about you",
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w700,
-                    height: 50 / 40),
-              ),
-              SizedBox(height: 30),
-              Text(
-                'Full Name',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xfff2f2f2)),
-              ),
-              SizedBox(
-                height: 6,
-              ),
-              TextField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  fillColor: Color(0xff091F1E),
-                  filled: true,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Tell us about you",
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 40,
+                      fontWeight: FontWeight.w700,
+                      height: 50 / 40),
+                ),
+                SizedBox(height: 30),
+                Text(
+                  'Full Name',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xfff2f2f2)),
+                ),
+                SizedBox(
+                  height: 6,
+                ),
+                TextField(
+                  controller: _nameController,
+                  decoration: InputDecoration(
+                    fillColor: Color(0xff091F1E),
+                    filled: true,
 
-                  // labelText: 'Full name',
-                  labelStyle: TextStyle(color: Colors.tealAccent[700]),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Color(0xff0E3735)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide:
-                        BorderSide(color: Colors.tealAccent[700]!, width: 1),
-                  ),
-                ),
-                style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w400,
-                    fontSize: 16),
-              ),
-              SizedBox(height: 23),
-              Text(
-                'Date of birth',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xfff2f2f2)),
-              ),
-              SizedBox(
-                height: 6,
-              ),
-              TextField(
-                style: TextStyle(color: Colors.white),
-                readOnly: true,
-                controller: dateController,
-                decoration: InputDecoration(
-                  fillColor: Color(0xff091F1E),
-                  filled: true,
-                  hintText: 'DD-MM-YYYY',
-                  hintStyle: TextStyle(
-                      fontWeight: FontWeight.w400,
-                      color: Colors.grey[500],
-                      fontSize: 16),
-                  // labelText: "Date of birth",
-                  labelStyle: TextStyle(color: Colors.grey),
-                  suffixIcon: Icon(Icons.calendar_today,
-                      color: Theme.of(context).colorScheme.primary),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Color(0xff0E3735)),
-                  ),
-                  border: OutlineInputBorder(
+                    // labelText: 'Full name',
+                    labelStyle: TextStyle(color: Colors.tealAccent[700]),
+                    enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Color(0xff0E3735))),
+                      borderSide: BorderSide(color: Color(0xff0E3735)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide:
+                          BorderSide(color: Colors.tealAccent[700]!, width: 1),
+                    ),
+                  ),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w400,
+                      fontSize: 16),
                 ),
-                onTap: () async {
-                  DateTime? pickedDate = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime(1900),
-                    lastDate: DateTime.now(),
-                  );
-                  dateController.text = pickedDate == null
-                      ? ''
-                      : DateFormat('dd-MM-yyyy').format(pickedDate);
-                  if (pickedDate != null) {
-                    setState(() {
-                      _selectedDate = pickedDate;
-                    });
-                  }
-                },
-              ),
-              SizedBox(
-                height: 23,
-              ),
-              Text(
-                'Gender',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xfff2f2f2)),
-              ),
-              SizedBox(
-                height: 6,
-              ),
-              Row(
-                spacing: 8,
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  Expanded(child: _genderButton('Male')),
-                  Expanded(child: _genderButton('Female')),
-                ],
-              ),
-              Spacer(),
-              ContinueButton(onPressed: _saveUserDetails)
-            ],
+                SizedBox(height: 23),
+                Text(
+                  'Date of birth',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xfff2f2f2)),
+                ),
+                SizedBox(
+                  height: 6,
+                ),
+                TextField(
+                  style: TextStyle(color: Colors.white),
+                  readOnly: true,
+                  controller: dateController,
+                  decoration: InputDecoration(
+                    fillColor: Color(0xff091F1E),
+                    filled: true,
+                    hintText: 'DD-MM-YYYY',
+                    hintStyle: TextStyle(
+                        fontWeight: FontWeight.w400,
+                        color: Colors.grey[500],
+                        fontSize: 16),
+                    // labelText: "Date of birth",
+                    labelStyle: TextStyle(color: Colors.grey),
+                    suffixIcon: Icon(Icons.calendar_today,
+                        color: Theme.of(context).colorScheme.primary),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Color(0xff0E3735)),
+                    ),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Color(0xff0E3735))),
+                  ),
+                  onTap: () async {
+                    DateTime? pickedDate = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(1900),
+                      lastDate: DateTime.now(),
+                    );
+                    dateController.text = pickedDate == null
+                        ? ''
+                        : DateFormat('dd-MM-yyyy').format(pickedDate);
+                    if (pickedDate != null) {
+                      setState(() {
+                        _selectedDate = pickedDate;
+                      });
+                    }
+                  },
+                ),
+                SizedBox(
+                  height: 23,
+                ),
+                Text(
+                  'Gender',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xfff2f2f2)),
+                ),
+                SizedBox(
+                  height: 6,
+                ),
+                Row(
+                  spacing: 8,
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Expanded(child: _genderButton('Male')),
+                    Expanded(child: _genderButton('Female')),
+                  ],
+                ),
+                // Spacer(),
+              ],
+            ),
           ),
         ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: ContinueButton(onPressed: _saveUserDetails),
       ),
     );
   }

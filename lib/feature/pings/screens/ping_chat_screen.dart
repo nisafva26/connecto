@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connecto/feature/auth/model/user_model.dart';
+import 'package:connecto/feature/bond_score/screens/bond_relationship_screen.dart';
 import 'package:connecto/feature/gatherings/providers/chat_gathering_provider.dart';
 import 'package:connecto/feature/gatherings/screens/select_location_screen.dart';
 import 'package:connecto/feature/pings/model/message_model.dart';
@@ -65,6 +66,11 @@ class PingChatScreen extends ConsumerWidget {
 
     final currentUser = FirebaseAuth.instance.currentUser!.uid;
 
+    String getBondId(String a, String b) {
+      final sorted = [a, b]..sort();
+      return "${sorted[0]}_${sorted[1]}";
+    }
+
     Future<void> sendPingMessage(String chatId, String senderId,
         String receiverId, PingModel ping) async {
       final messageRef = FirebaseFirestore.instance
@@ -124,6 +130,7 @@ class PingChatScreen extends ConsumerWidget {
         'lastActivity': now,
         'hasPendingGathering': false,
         'latestPingFrom': uid,
+        'isChatOpened': false,
         'latestPingFromFriend': false,
         'lastPingText': ping,
       }, SetOptions(merge: true));
@@ -138,10 +145,19 @@ class PingChatScreen extends ConsumerWidget {
         'lastActivity': now,
         'hasPendingGathering': false,
         'latestPingFrom': uid,
+        'isChatOpened': false,
         'latestPingFromFriend': true,
         'lastPingText': ping,
       }, SetOptions(merge: true));
     }
+
+    final bondId = getBondId(currentUser, friendId);
+
+    final bondAsync = ref.watch(bondProvider(bondId));
+
+    final bond = bondAsync.asData?.value;
+
+    log('===bond async value : $bond');
 
     return Scaffold(
       backgroundColor: Color(0xff001311),
@@ -196,6 +212,7 @@ class PingChatScreen extends ConsumerWidget {
                     // 📸 Profile Picture + Name
                     CircleAvatar(
                       radius: 15,
+                      backgroundColor: Colors.white,
                       child: Text(
                         getInitials(friendName),
                         style: TextStyle(
@@ -219,11 +236,31 @@ class PingChatScreen extends ConsumerWidget {
                   ],
                 ),
                 TextButton(
-                  onPressed: () {},
-                  child: Text("Add",
-                      style:
-                          TextStyle(color: Colors.transparent, fontSize: 16)),
-                ),
+                    onPressed: () {
+                      context.push(
+                        '/bond-relation/${friend.id}',
+                        extra: {
+                          'friendName': friend.fullName,
+                        },
+                      );
+                    },
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.emoji_events,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 20,
+                        ),
+                        bond == null ? Text('Lvl 1') : Text('Lvl ${bond.level}')
+                      ],
+                    )
+
+                    // Text("View",
+                    //     style: TextStyle(
+                    //         color: Theme.of(context).colorScheme.primary,
+                    //         fontSize: 16)),
+                    ),
                 // Spacer(flex: 2,)
               ],
             ),
@@ -234,11 +271,19 @@ class PingChatScreen extends ConsumerWidget {
         children: [
           gatheringListAsync.when(
             data: (gatherings) {
-              log("gatherings : $gatherings");
-              if (gatherings.isEmpty) return SizedBox();
+              final now = DateTime.now();
+              final filteredGatherings =
+                  gatherings.where((g) => g.dateTime.isAfter(now)).toList();
+              log('gatherings : $gatherings');
+
+              // log('gathering date time : ${gatherings[].dateTime} : now timw : $now');
+
+              log("filteredGatherings : $filteredGatherings");
+
+              if (filteredGatherings.isEmpty) return SizedBox();
 
               return Column(
-                children: gatherings.map((gathering) {
+                children: filteredGatherings.map((gathering) {
                   final uid = FirebaseAuth.instance.currentUser!.uid;
                   final isHost = gathering.hostId == uid;
                   final status = gathering.invitees[uid]?.status ?? 'pending';

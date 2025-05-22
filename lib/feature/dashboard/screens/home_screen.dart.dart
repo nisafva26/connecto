@@ -1,19 +1,16 @@
 import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:connecto/common_widgets/continue_button.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
 import 'package:connecto/feature/gatherings/screens/gathering_list.dart';
-import 'package:connecto/my_app.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 
 class MainScreen extends StatefulWidget {
   final Widget child;
-  MainScreen({required this.child});
+  MainScreen({super.key, required this.child});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -30,16 +27,17 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   int _getIndexFromPath(String path) {
-    if (path.contains('bond')) return 0;
-    if (path.contains('gathering')) return 1;
+    if (path.contains('gathering')) return 0;
+    if (path.contains('bond')) return 1;
+
     if (path.contains('rank')) return 2;
     if (path.contains('profile')) return 3;
     return 0; // default to first tab
   }
 
   static List<Widget> pages = [
-    BondScreen(),
     GatheringsTab(),
+    BondScreen(),
     RankScreen(),
     ProfileScreen(),
   ];
@@ -78,13 +76,14 @@ class _MainScreenState extends State<MainScreen> {
         },
         items: const [
           BottomNavigationBarItem(
+              icon: Icon(Icons.hourglass_full), label: 'Gatherings'),
+          BottomNavigationBarItem(
               icon: Icon(Icons.link),
               label: 'Bond',
               backgroundColor: Colors.white),
-          BottomNavigationBarItem(icon: Icon(Icons.group), label: 'Gathering'),
-          BottomNavigationBarItem(icon: Icon(Icons.leaderboard), label: 'Rank'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.account_circle), label: 'Profile'),
+              icon: Icon(Icons.leaderboard), label: 'Bond rank'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );
@@ -92,17 +91,19 @@ class _MainScreenState extends State<MainScreen> {
 }
 
 class SettingScreen extends ConsumerWidget {
+  const SettingScreen({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final FirebaseAuth _auth = FirebaseAuth.instance;
-    final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+    final FirebaseAuth auth = FirebaseAuth.instance;
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
     Future<void> updateUserName(String newName) async {
-      final currentUser = _auth.currentUser;
+      final currentUser = auth.currentUser;
       if (currentUser == null) {}
 
       try {
-        await _firestore.collection('users').doc(currentUser!.uid).update({
+        await firestore.collection('users').doc(currentUser!.uid).update({
           'fullName': newName,
         });
 
@@ -137,6 +138,8 @@ class SettingScreen extends ConsumerWidget {
 // }
 
 class RankScreen extends StatelessWidget {
+  const RankScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -147,6 +150,8 @@ class RankScreen extends StatelessWidget {
 }
 
 class ProfileScreen extends ConsumerWidget {
+  const ProfileScreen({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     void logout(BuildContext context) async {

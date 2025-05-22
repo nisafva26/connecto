@@ -12,7 +12,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_google_maps_webservices/places.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 class CreateGatheringScreen extends ConsumerStatefulWidget {
   final String friendID;
@@ -31,6 +30,7 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
 
   bool isRecurring = false;
   DateTime? selectedDateTime;
+  String? selectedPhotoRef = '';
 
   PlacesSearchResult? selectedPlace;
 
@@ -53,17 +53,17 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
       builder: (context) => AddLocationScreen(
           eventType: selectedActivity == "Other"
               ? activityTypeController.text
-              : selectedActivity??''),
+              : selectedActivity ?? ''),
     );
 
     if (result != null) {
+      final photoRef = selectedPlace!.photos.first.photoReference;
       setState(() {
         selectedPlace = result;
+        selectedPhotoRef = photoRef;
       });
     }
   }
-
-  
 
   Future<void> updateChatFlagForGathering({
     required String friendId,
@@ -363,7 +363,6 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
               SizedBox(height: 24),
               ElevatedButton(
                 onPressed: () async {
-
                   final currentUser = ref.read(currentUserProvider).value;
                   if (!isGatheringFormValid()) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -380,9 +379,7 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
                   final isRecurring = this.isRecurring;
                   final recurrenceType = isRecurring ? "weekly" : "";
                   final date = selectedDateTime!;
-                  final inviteeIds = [
-                    widget.friendID
-                  ]; // Replace with actual selection
+// Replace with actual selection
 
                   final location = {
                     "name": selectedPlace!.name,
@@ -392,7 +389,11 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
                   };
 
                   final invitees = [
-                    {"id": widget.friendID, "name": widget.friend.fullName},
+                    {
+                      "id": widget.friendID,
+                      "name": widget.friend.fullName,
+                      "phoneNumber": widget.friend.phoneNumber
+                    },
                   ];
 
                   try {
@@ -406,8 +407,8 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
                             recurrenceType: recurrenceType,
                             location: location,
                             inviteesWithNames: invitees,
-                            hostName: currentUser!.fullName
-                            );
+                            hostName: currentUser!.fullName,
+                            photoRef: selectedPhotoRef!);
 
                     updateChatFlagForGathering(friendId: widget.friendID);
 
@@ -565,6 +566,4 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
       ],
     );
   }
-
- 
 }

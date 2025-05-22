@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:contacts_service/contacts_service.dart';
+// import 'package:contacts_service/contacts_service.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class ContactsPage extends StatefulWidget {
@@ -32,7 +33,7 @@ class _ContactsPageState extends State<ContactsPage> {
 
   Future<void> getContacts() async {
     try {
-      List<Contact> _contacts = await ContactsService.getContacts();
+      List<Contact> _contacts = await FlutterContacts.getContacts(withProperties: true);
       setState(() {
         contacts = _contacts;
       });
@@ -53,7 +54,7 @@ class _ContactsPageState extends State<ContactsPage> {
                 return ListTile(
                   title: Text(contacts[index].displayName ?? "No Name"),
                   subtitle: Text(contacts[index].phones?.isNotEmpty == true
-                      ? contacts[index].phones!.first.value!
+                      ? contacts[index].phones!.first.number!
                       : "No Number"),
                 );
               },

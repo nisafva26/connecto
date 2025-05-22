@@ -18,6 +18,7 @@ class CircleNotifier extends StateNotifier<CircleState> {
     required String circleColor,
     required List<Map<String, String>>
         members, // [{fullName: "John", phoneNumber: "123456"}]
+    String? circleId, // Optional custom ID
   }) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -28,7 +29,10 @@ class CircleNotifier extends StateNotifier<CircleState> {
     state = CircleState.loading(); // Show loading state
 
     try {
-      final circleRef = _firestore.collection('circles').doc();
+      // final circleRef = _firestore.collection('circles').doc();
+      final circleRef = circleId != null
+          ? _firestore.collection('circles').doc(circleId)
+          : _firestore.collection('circles').doc();
 
       List<String> registeredUserIds = [];
       List<Map<String, String>> unregisteredUsers = [];

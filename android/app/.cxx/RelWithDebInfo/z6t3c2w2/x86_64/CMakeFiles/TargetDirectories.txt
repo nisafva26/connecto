@@ -1,0 +1,2 @@
+/Users/sa/Desktop/flutter projects/connecto/android/app/.cxx/RelWithDebInfo/z6t3c2w2/x86_64/CMakeFiles/edit_cache.dir
+/Users/sa/Desktop/flutter projects/connecto/android/app/.cxx/RelWithDebInfo/z6t3c2w2/x86_64/CMakeFiles/rebuild_cache.dir

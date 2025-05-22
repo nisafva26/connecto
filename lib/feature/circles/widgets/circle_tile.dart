@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 Widget buildCircleTile(CircleModel circle, BuildContext context) {
+  
   final fontColor = hexToColor(circle.circleColor).computeLuminance() > 0.5
       ? Colors.black
       : Colors.white;
@@ -68,9 +69,9 @@ Widget buildCircleTile(CircleModel circle, BuildContext context) {
                   height: 50,
                   width: 50,
                   decoration: BoxDecoration(
-                      border: Border.all(color: fontColor),
+                      // border: Border.all(color: fontColor),
                       shape: BoxShape.circle,
-                      color: hexToColor(circle.circleColor)),
+                      color: fontColor.withOpacity(0.2)),
                   child: Center(
                     child: Text(
                       getInitials(circle.registeredUsers[i].fullName),

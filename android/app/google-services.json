@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "699211054489",
+    "project_id": "connecto-fb0a4",
+    "storage_bucket": "connecto-fb0a4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:699211054489:android:994bcbcb0ecf6ea42be708",
+        "android_client_info": {
+          "package_name": "com.example.connecto"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "699211054489-8lbpvocidprqep7oojvbrldbrnejo9dj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.connecto",
+            "certificate_hash": "a30f5bcbf87058518cb1986f8111f3ad80650ab1"
+          }
+        },
+        {
+          "client_id": "699211054489-fvsg0btj8k7eq43oopji5rqt9f3nfn8q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzZhlOWEWDLDexUa2DlZ8F0ObmXYHoKlE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "699211054489-fvsg0btj8k7eq43oopji5rqt9f3nfn8q.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "699211054489-uj2iej9epf71lbgaj8vfdlbkqm6pjgov.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.connecto"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

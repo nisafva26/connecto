@@ -7,15 +7,12 @@ import 'package:connecto/common_widgets/continue_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:go_router/go_router.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as map;
 import 'package:flutter_google_maps_webservices/places.dart';
-import 'package:google_places_flutter/google_places_flutter.dart';
 
-final String googleApiKey =
-// "AIzaSyDQDygEMbAATTuNLiqFjnP7uNXwVfWgc4Y";
-    "AIzaSyBNzf-57rbmFgIcx7gtlalr0wtpMmJaltQ";
+final googleApiKey = dotenv.env['GOOGLE_API_KEY'];
 
 class AddLocationScreen extends StatefulWidget {
   final String eventType;
@@ -59,12 +56,18 @@ class _AddLocationScreenState extends State<AddLocationScreen>
         currentPosition = position;
       });
 
+      log('===current position : $position');
+
       fetchSuggestedLocations();
     });
   }
 
   Future<Position> getCurrentPosition() async {
     LocationPermission permission = await Geolocator.checkPermission();
+    // Geolocator.requestPermission();
+    log('permission : $permission');
+
+    
 
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
@@ -74,10 +77,9 @@ class _AddLocationScreenState extends State<AddLocationScreen>
         throw Exception("Location permission not granted");
       }
     }
-
-    return Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
+    final position = await Geolocator.getCurrentPosition();
+    log('cur pos in fn : $position');
+    return position;
   }
 
   @override
@@ -103,6 +105,7 @@ class _AddLocationScreenState extends State<AddLocationScreen>
   /// 🔹 Fetch places based on event type
   Future<void> fetchSuggestedLocations() async {
     // log('event type : ${widget.eventType} ${searchController.text}');
+    log('=========inside fetch suggestions....==========');
 
     log('current posotion : $currentPosition');
     final String query = searchController.text.isEmpty
@@ -176,8 +179,7 @@ class _AddLocationScreenState extends State<AddLocationScreen>
             ),
             image: labelImage,
             iconSize: 1.0, // Keep size original
-          )
-          );
+          ));
         }
       });
     });
@@ -193,7 +195,7 @@ class _AddLocationScreenState extends State<AddLocationScreen>
 
   @override
   Widget build(BuildContext context) {
-    // log('current position : $currentPosition');
+    log('current position : $currentPosition');
     return DraggableScrollableSheet(
         initialChildSize: 0.9, // Take 90% of the screen
         minChildSize: 0.9, // Minimum height

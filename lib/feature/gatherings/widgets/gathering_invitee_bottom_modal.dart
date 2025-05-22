@@ -7,18 +7,21 @@ import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
 import 'package:connecto/helper/color_helper.dart';
 import 'package:connecto/helper/get_initials.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:contacts_service/contacts_service.dart';
+// import 'package:contacts_service/contacts_service.dart';
 
 class AddInviteegathering extends ConsumerStatefulWidget {
   final List<Map<String, String>> initialFriends;
   final List<CircleModel> initialCircles;
+  final List<Map<String, String>> initialContacts;
   const AddInviteegathering({
     super.key,
     this.initialFriends = const [],
     this.initialCircles = const [],
+    this.initialContacts = const [],
   });
 
   @override
@@ -42,6 +45,7 @@ class _AddInviteegatheringState extends ConsumerState<AddInviteegathering> {
     super.initState();
     selectedFriends = widget.initialFriends.toSet();
     selectedCircles = widget.initialCircles.toSet();
+    selectedContacts = widget.initialContacts.toSet();
     requestContactsPermission();
     searchController.addListener(_filterContacts);
   }
@@ -62,7 +66,8 @@ class _AddInviteegatheringState extends ConsumerState<AddInviteegathering> {
   /// Fetch contacts
   Future<void> _fetchContacts() async {
     try {
-      List<Contact> fetchedContacts = (await ContactsService.getContacts())
+      List<Contact> fetchedContacts = (await FlutterContacts.getContacts(
+              withProperties: true))
           .where((c) => c.phones!.isNotEmpty) // Filter contacts without numbers
           .toList();
       setState(() {
@@ -81,7 +86,7 @@ class _AddInviteegatheringState extends ConsumerState<AddInviteegathering> {
       filteredContacts = contacts.where((contact) {
         String name = contact.displayName?.toLowerCase() ?? '';
         String number =
-            contact.phones!.isNotEmpty ? contact.phones!.first.value! : '';
+            contact.phones!.isNotEmpty ? contact.phones!.first.number! : '';
         return name.contains(query) || number.contains(query);
       }).toList();
     });
@@ -99,9 +104,11 @@ class _AddInviteegatheringState extends ConsumerState<AddInviteegathering> {
         selectedCircles.isEmpty) {
       log('please select from your friends or circles');
     } else {
+      log('before pop selected contacts : $selectedContacts');
       Navigator.pop(context, {
-        'selectedFriends': [...selectedFriends, ...selectedContacts],
+        'selectedFriends': [...selectedFriends],
         'selectedCircles': selectedCircles.toList(),
+        'selectedContacts': selectedContacts.toList()
       });
     }
   }
@@ -297,7 +304,9 @@ class _AddInviteegatheringState extends ConsumerState<AddInviteegathering> {
                                         return InkWell(
                                           onTap: () {
                                             _toggleFriendSelection(
-                                                friend.id, friend.fullName);
+                                                friend.id,
+                                                friend.fullName,
+                                                friend.phoneNumber);
                                           },
                                           child: ListTile(
                                             contentPadding: EdgeInsets.only(
@@ -345,6 +354,7 @@ class _AddInviteegatheringState extends ConsumerState<AddInviteegathering> {
                                               ),
                                               onChanged: (bool? value) {
                                                 _toggleFriendSelection(
+                                                    friend.id,
                                                     friend.fullName,
                                                     friend.phoneNumber);
                                               },
@@ -361,8 +371,117 @@ class _AddInviteegatheringState extends ConsumerState<AddInviteegathering> {
                                     return CircularProgressIndicator();
                                   },
                                 ),
+
+                                // SizedBox(
+                                //   height: 16,
+                                // ),
+
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20),
+                                  child: Text(
+                                    'Select from contacts',
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white),
+                                  ),
+                                ),
                                 SizedBox(
                                   height: 16,
+                                ),
+                                ListView.separated(
+                                  shrinkWrap: true,
+                                  separatorBuilder: (context, index) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 20),
+                                      child: Divider(
+                                        color: Color(0xff2b3c3a),
+                                        height: .7,
+                                      ),
+                                    );
+                                  },
+                                  controller: scrollController,
+                                  itemCount: filteredContacts.length,
+                                  physics: NeverScrollableScrollPhysics(),
+                                  itemBuilder: (context, index) {
+                                    final contact = filteredContacts[index];
+                                    final phone = contact.phones!.isNotEmpty
+                                        ? contact.phones.first.number
+                                        : "No Number";
+                                    final isSelected = selectedContacts.any(
+                                        (c) =>
+                                            c['phoneNumber'] ==
+                                            phone.replaceAll(
+                                                RegExp(r'[^\d+]'), ''));
+
+                                    return InkWell(
+                                      onTap: () {
+                                        _toggleSelectionContact(
+                                            contact.displayName!, phone);
+                                      },
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          // color: isSelected
+                                          //     ? Colors.tealAccent.withOpacity(0.2)
+                                          //     : Colors.transparent,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.only(
+                                              left: 28, right: 23),
+                                          leading: CircleAvatar(
+                                            backgroundColor: Colors.grey[800],
+                                            child: contact.photoOrThumbnail !=
+                                                        null &&
+                                                    contact.photoOrThumbnail!
+                                                        .isNotEmpty
+                                                ? ClipOval(
+                                                    child: Image.memory(contact
+                                                        .photoOrThumbnail!))
+                                                : Text(
+                                                    getInitials(
+                                                        contact.displayName),
+                                                    style: TextStyle(
+                                                        color: Colors.white)),
+                                          ),
+                                          title: Text(
+                                            contact.displayName ?? "No Name",
+                                            style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16),
+                                          ),
+                                          subtitle: Text(
+                                            phone!,
+                                            style: TextStyle(
+                                                color: Colors.grey,
+                                                fontSize: 14),
+                                          ),
+                                          trailing: Checkbox(
+                                            value: isSelected,
+                                            onChanged: (bool? value) {
+                                              _toggleSelectionContact(
+                                                  contact.displayName!, phone);
+                                            },
+                                            activeColor: Color(0xff03FFE2),
+                                            side: WidgetStateBorderSide
+                                                .resolveWith(
+                                              (states) => BorderSide(
+                                                  width: 1.0,
+                                                  color: Color(0xff233443)),
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                      5), // ✅ Make it round
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                             ),
@@ -415,26 +534,42 @@ class _AddInviteegatheringState extends ConsumerState<AddInviteegathering> {
     );
   }
 
-  void _toggleFriendSelection(String id, String name) {
+  void _toggleFriendSelection(String id, String name, String phoneNumber) {
     setState(() {
       final isSelected = selectedFriends.any((f) => f['id'] == id);
 
       if (isSelected) {
         selectedFriends.removeWhere((f) => f['id'] == id);
       } else {
-        selectedFriends.add({'id': id, 'name': name});
+        selectedFriends
+            .add({'id': id, 'name': name, 'phoneNumber': phoneNumber});
       }
     });
   }
 
   void _toggleSelectionContact(String name, String phone) {
+    final normalizedPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    log('normalised number : $normalizedPhone');
+
     setState(() {
-      final isSelected = selectedContacts.any((c) => c['phoneNumber'] == phone);
+      final isSelected = selectedContacts.any(
+        (c) =>
+            c['phoneNumber']?.replaceAll(RegExp(r'[^\d+]'), '') ==
+            normalizedPhone,
+      );
+      log('is selected ? $isSelected');
 
       if (isSelected) {
-        selectedContacts.removeWhere((c) => c['phoneNumber'] == phone);
+        selectedContacts.removeWhere(
+          (c) =>
+              c['phoneNumber']?.replaceAll(RegExp(r'[^\d+]'), '') ==
+              normalizedPhone,
+        );
       } else {
-        selectedContacts.add({'fullName': name, 'phoneNumber': phone});
+        selectedContacts.add({
+          'fullName': name,
+          'phoneNumber': normalizedPhone, // 🔁 Store normalized form
+        });
       }
     });
   }

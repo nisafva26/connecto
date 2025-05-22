@@ -1,33 +1,23 @@
 import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:connecto/feature/add_friends/screens/contacts_page.dart';
 import 'package:connecto/feature/auth/screens/login_screen.dart';
 import 'package:connecto/feature/auth/screens/user_details_screen.dart';
-import 'package:connecto/feature/dashboard/screens/home_screen.dart.dart';
-import 'package:connecto/feature/onboarding/screens/onboarding_screen.dart';
 import 'package:connecto/feature/pings/model/ping_model.dart';
 import 'package:connecto/my_app.dart';
-import 'package:connecto/theme/app_theme.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Import the theme file
 
-import 'package:connecto/feature/auth/screens/login_screen.dart';
-
-import 'package:connecto/theme/app_theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // GoRouter.optionURLReflectsImperativeAPIs = true;
-
+  await dotenv.load();
   await setUp();
   await Firebase.initializeApp();
   runApp(ProviderScope(child: MyApp()));
@@ -50,6 +40,13 @@ Future<void> setUp() async {
 // }
 
 final List<PingModel> predefinedPings = [
+  PingModel(
+    id: 'ping4',
+    name: "Good morning",
+    pattern: [500, 100, 200, 50, 100],
+    isCustom: false,
+    createdAt: DateTime.now(),
+  ),
   PingModel(
     id: 'ping1',
     name: "I Miss You",
@@ -184,7 +181,6 @@ class HomeScreen extends StatelessWidget {
   void _logout(BuildContext context) async {
     log('inside logout feature');
     await FirebaseAuth.instance.signOut();
-    
   }
 
   @override

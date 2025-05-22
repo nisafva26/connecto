@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.READ_CONTACTS"/>
+   
     <uses-permission android:name="android.permission.VIBRATE"/>
 
     <!-- Foreground location permission -->
@@ -12,6 +12,9 @@
 
 <!-- Required if you're targeting Android 11+ -->
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+<uses-permission android:name="android.permission.READ_CONTACTS" />  
+<uses-permission android:name="android.permission.WRITE_CONTACTS" />
 
 
 

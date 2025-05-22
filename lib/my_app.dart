@@ -1,22 +1,25 @@
 import 'dart:developer';
 
+import 'package:connecto/feature/access_request/screens/access_request_screen.dart';
 import 'package:connecto/feature/auth/screens/login_screen.dart';
 import 'package:connecto/feature/auth/screens/login_success.dart';
 import 'package:connecto/feature/auth/screens/user_details_screen.dart';
+import 'package:connecto/feature/bond_score/screens/bond_relationship_screen.dart';
 import 'package:connecto/feature/circles/models/circle_model.dart';
 import 'package:connecto/feature/circles/screens/circle_chat_screen.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
 import 'package:connecto/feature/circles/screens/create_circle_screen.dart';
 import 'package:connecto/feature/dashboard/screens/friends_details_screen.dart';
 import 'package:connecto/feature/dashboard/screens/home_screen.dart.dart';
+import 'package:connecto/feature/gatherings/models/gathering_model.dart';
 import 'package:connecto/feature/gatherings/screens/create_gathering_circle.dart';
 import 'package:connecto/feature/gatherings/screens/create_gathering_screen.dart';
+import 'package:connecto/feature/gatherings/screens/edit_gathering_circle.dart';
 import 'package:connecto/feature/gatherings/screens/gathering_details_screen.dart';
 import 'package:connecto/feature/gatherings/screens/gathering_list.dart';
 import 'package:connecto/feature/gatherings/screens/select_location_screen.dart';
-import 'package:connecto/feature/pings/model/ping_model.dart';
 import 'package:connecto/feature/pings/screens/ping_chat_screen.dart';
-import 'package:connecto/feature/pings/screens/ping_list_screen.dart';
+import 'package:connecto/feature/video_creation/screens/video_from_photos_screen.dart';
 import 'package:connecto/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -45,6 +48,19 @@ final userDataProvider = FutureProvider.family<DocumentSnapshot?, String>(
 
 final lastRouteProvider = StateProvider<String>((ref) => '/bond');
 
+final accessRequestProvider = FutureProvider.family<DocumentSnapshot?, String>(
+  (ref, phoneNumber) async {
+    log('access number : $phoneNumber');
+    final doc = await FirebaseFirestore.instance
+        .collection('accessRequests')
+        .doc(phoneNumber)
+        .get();
+    log('doc : ${doc.data()}');
+    log('returing == ${doc.exists && doc.data()?['status'] == 'approved' ? doc : null}');
+    return doc.exists && doc.data()?['status'] == 'approved' ? doc : null;
+  },
+);
+
 // ✅ Define Router Outside MyApp
 final goRouterProvider = Provider<GoRouter>((ref) {
   final user = ref.watch(authStateProvider).asData?.value;
@@ -60,6 +76,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     observers: [NavigatorObserver()],
     // refreshListenable: GoRouterRefreshNotifier(ref),
     redirect: (context, state) {
+      // log('user $user');
+      // if (user == null) return '/';
+
+      if (user == null) {
+        final phone = state.uri.queryParameters['phone'] ??
+            ref.read(requestedPhoneProvider);
+        ;
+        log('phone in router: $phone');
+        final accessDoc =
+            ref.watch(accessRequestProvider(phone ?? '')).asData?.value;
+
+        log('aacess doc : $accessDoc');
+        
+        if (accessDoc == null) {
+          return '/access-request';
+        }
+        return '/';
+      }
+
       // ✅ If Firebase redirects to an unrecognized deep link, stay on the same page
       if (state.uri.toString().contains("firebaseauth/link")) {
         log("🚨 Ignoring Firebase Web Verification Redirect: ${state.uri}");
@@ -68,6 +103,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     },
 
     routes: [
+      GoRoute(
+        path: '/access-request',
+        builder: (context, state) => AccessRequestScreen(),
+      ),
       // ✅ Login Route
       GoRoute(
         path: '/',
@@ -92,7 +131,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
           if (userData != null && userData.exists) {
             log('====should go to bond');
-            return '/bond';
+            return '/gathering';
           } else if (userData != null && !userData.exists) {
             return '/user-details';
           }
@@ -116,7 +155,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'setting',
                 parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => SettingScreen(),
+                builder: (context, state) =>
+                    // SettingScreen()
+                    VideoFromPhotosScreen(),
               ),
               // GoRoute(
               //     path: 'create-gathering/:friendID',
@@ -140,14 +181,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 parentNavigatorKey: _rootNavigatorKey,
                 builder: (context, state) {
                   final circleId = state.pathParameters['circleId']!;
-                 
 
-                       final circle =
-                      state.extra as CircleModel; 
+                  final circle = state.extra as CircleModel;
 
                   return GroupPingChatScreen(
                     circleId: circleId,
-                
                     circle: circle,
                   );
                 },
@@ -221,6 +259,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     return CreateGatheringCircleScreen();
                   },
                 ),
+                GoRoute(
+                  path: 'edit',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) {
+                    final gathering = state.extra as GatheringModel;
+                    return EditGatheringCircle(gathering: gathering);
+                  },
+                ),
               ]),
           GoRoute(
             path: '/rank',
@@ -239,6 +285,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final gatheringId = state.pathParameters['gatheringId']!;
           return GatheringDetailsScreen(gatheringId: gatheringId);
+        },
+      ),
+
+      GoRoute(
+        path: '/bond-relation/:friendId',
+        builder: (context, state) {
+          final friendId = state.pathParameters['friendId']!;
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+
+          return BondRelationshipScreen(
+            friendId: friendId,
+            friendName: extra['friendName'] ?? '',
+          );
         },
       ),
 
@@ -270,13 +329,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             });
             Future.delayed(Duration(seconds: 3), () {
               if (userData != null && userData.exists) {
-                return '/bond'; // ✅ Move to bond screen after delay
+                return '/gathering'; // ✅ Move to bond screen after delay
               } else if (userData != null && !userData.exists) {
                 return '/user-details'; // ✅ Move to user-details if needed
               }
             });
           } else {
-            if (userData != null && userData.exists) return '/bond';
+            if (userData != null && userData.exists) return '/gathering';
             if (userData != null && !userData.exists) return '/user-details';
           }
 

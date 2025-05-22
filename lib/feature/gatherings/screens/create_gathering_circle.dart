@@ -12,6 +12,7 @@ import 'package:connecto/helper/get_initials.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_google_maps_webservices/places.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:loading_indicator/loading_indicator.dart';
@@ -30,14 +31,19 @@ class _CreateGatheringCircleScreenState
   final TextEditingController dateTimeController = TextEditingController();
 
   bool isRecurring = false;
+  int maxPublicParticipants = 10; // default value
   DateTime? selectedDateTime;
+  bool isPublic = false; // add this state variable
 
   List<Map<String, dynamic>> selectedInvitees = []; // {id: "", name: ""}
 
   PlacesSearchResult? selectedPlace;
 
   List<Map<String, String>> selectedFriends = [];
+  List<Map<String, String>> selectedContacts = [];
   List<CircleModel> selectedCircles = [];
+
+  String? selectedPhotoRef = '';
 
   final List<Map<String, dynamic>> activities = [
     {"name": "Football", "icon": Icons.sports_soccer},
@@ -62,9 +68,15 @@ class _CreateGatheringCircleScreenState
     );
 
     if (result != null) {
+
+       final photoRef = result.photos.first.photoReference;
+     
       setState(() {
         selectedPlace = result;
+        selectedPhotoRef = photoRef;
       });
+
+
     }
   }
 
@@ -88,6 +100,7 @@ class _CreateGatheringCircleScreenState
         'hasPendingGathering': true,
         'latestPingFromFriend': false, // You sent the request
         'latestPingFrom': uid,
+        'isChatOpened': false,
         'lastPingText': "",
       }, SetOptions(merge: true));
     }
@@ -106,6 +119,7 @@ class _CreateGatheringCircleScreenState
         'hasPendingGathering': true,
         'latestPingFromFriend': true, // They received the request
         'latestPingFrom': uid,
+        'isChatOpened': false,
         'lastPingText': "",
       }, SetOptions(merge: true));
     }
@@ -167,6 +181,7 @@ class _CreateGatheringCircleScreenState
         builder: (_) => AddInviteegathering(
           initialFriends: selectedFriends,
           initialCircles: selectedCircles,
+          initialContacts: selectedContacts,
         ),
       );
 
@@ -174,9 +189,14 @@ class _CreateGatheringCircleScreenState
         setState(() {
           selectedFriends =
               List<Map<String, String>>.from(result['selectedFriends'] ?? []);
+          selectedContacts =
+              List<Map<String, String>>.from(result['selectedContacts'] ?? []);
           selectedCircles =
               List<CircleModel>.from(result['selectedCircles'] ?? []);
         });
+
+        log('selected friends : ${selectedFriends}');
+        log('selected contacts : ${selectedContacts}');
       }
     }
 
@@ -369,43 +389,47 @@ class _CreateGatheringCircleScreenState
                 ),
               ),
               const SizedBox(height: 24),
-              Text("Invite friends & circles",
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xffF2F2F2),
-                      fontFamily: "Inter")),
-              const SizedBox(height: 10),
-              GestureDetector(
-                onTap: () {
-                  openInviteModal();
-                },
-                child: Container(
-                  width: MediaQuery.sizeOf(context).width,
-                  padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                  decoration: BoxDecoration(
-                    color: Color(0xff091F1E),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(Icons.person_add, color: Color(0xFF03FFE2)),
-                      SizedBox(height: 12),
-                      Text(
-                        selectedInvitees.isEmpty
-                            ? 'Add invites'
-                            : '${selectedInvitees.length} invitee(s) selected',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontFamily: 'SFPRO',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      )
-                    ],
+              if (selectedCircles.isEmpty &&
+                  selectedContacts.isEmpty &&
+                  selectedFriends.isEmpty) ...[
+                Text("Invite friends & circles",
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xffF2F2F2),
+                        fontFamily: "Inter")),
+                const SizedBox(height: 10),
+                GestureDetector(
+                  onTap: () {
+                    openInviteModal();
+                  },
+                  child: Container(
+                    width: MediaQuery.sizeOf(context).width,
+                    padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: Color(0xff091F1E),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(Icons.person_add, color: Color(0xFF03FFE2)),
+                        SizedBox(height: 12),
+                        Text(
+                          selectedInvitees.isEmpty
+                              ? 'Add invites'
+                              : '${selectedInvitees.length} invitee(s) selected',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontFamily: 'SFPRO',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
 
               if (selectedFriends.isNotEmpty || selectedCircles.isNotEmpty)
                 buildSelectedInviteesList(),
@@ -434,6 +458,96 @@ class _CreateGatheringCircleScreenState
               //   ),
               // Spacer(),
               SizedBox(height: 24),
+
+              SwitchListTile(
+                value: isPublic,
+                onChanged: (val) {
+                  setState(() {
+                    isPublic = val;
+                  });
+                },
+                title: Text("Make Gathering Public",
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xffF2F2F2),
+                        fontFamily: "Inter")),
+                subtitle: Row(
+                  children: [
+                    Icon(
+                      Icons.info,
+                      size: 12,
+                    ),
+                    SizedBox(
+                      width: 7,
+                    ),
+                    Text(
+                      'Allow other people to join your gathering',
+                      style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                          fontFamily: "Inter"),
+                    ),
+                  ],
+                ),
+                activeColor: Color(0xFF03FFE2),
+                // tileColor: Color(0xff091F1E),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+
+              if (isPublic) ...[
+                SizedBox(height: 12),
+                GestureDetector(
+                  onTap: () async {
+                    final selected = await showModalBottomSheet<int>(
+                      context: context,
+                      backgroundColor: Colors.transparent,
+                      isScrollControlled: true,
+                      builder: (_) => _buildNumberPickerSheet(),
+                    );
+
+                    if (selected != null) {
+                      setState(() {
+                        maxPublicParticipants = selected;
+                      });
+                    }
+                  },
+                  child: Container(
+                    padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Color(0xff091F1E),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Max Public Participants",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          "$maxPublicParticipants",
+                          style: TextStyle(
+                            color: Color(0xFF03FFE2),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(height: 24),
+              ],
+              SizedBox(height: 24),
+
               ElevatedButton(
                 onPressed: () async {
                   final currentUser = ref.read(currentUserProvider).value;
@@ -474,8 +588,21 @@ class _CreateGatheringCircleScreenState
                         ...circle.registeredUsers.map((user) => {
                               "id": user.id,
                               "name": user.fullName,
+                              "phoneNumber": user.phoneNumber
                             })
                     ];
+
+                    List<Map<String, String>> normalizedContacts =
+                        selectedContacts.map((contact) {
+                      final phone = contact['phoneNumber'] ?? '';
+                      final name = contact['fullName'] ?? '';
+                      final normalizedPhone =
+                          phone.replaceAll(RegExp(r'[^\d+]'), '');
+                      return {
+                        'fullName': name,
+                        'phoneNumber': normalizedPhone,
+                      };
+                    }).toList();
                     await ref
                         .read(createGatheringProvider.notifier)
                         .createGathering(
@@ -486,7 +613,11 @@ class _CreateGatheringCircleScreenState
                             recurrenceType: recurrenceType,
                             location: location,
                             inviteesWithNames: allInvitees,
-                            hostName: currentUser!.fullName);
+                            hostName: currentUser!.fullName,
+                            allContacts: normalizedContacts,
+                            isPublic: isPublic,
+                            maxPublicParticipants: maxPublicParticipants,
+                            photoRef: selectedPhotoRef!);
 
                     // updateChatFlagForGathering(friendId: widget.friendID);
                     final allInviteeIds =
@@ -512,15 +643,14 @@ class _CreateGatheringCircleScreenState
                 ),
                 child: gatheringState.status == CreateGatheringStatus.loading
                     ? Center(
-                      child: Container(
-                        height: 40,
-                        child: LoadingIndicator(
-                          
+                        child: Container(
+                          height: 40,
+                          child: LoadingIndicator(
                             indicatorType: Indicator.ballBeat,
                             colors: [Colors.black],
                           ),
-                      ),
-                    )
+                        ),
+                      )
                     : Text("Create gathering  →"),
               ),
               SizedBox(height: 30),
@@ -657,12 +787,53 @@ class _CreateGatheringCircleScreenState
     );
   }
 
+  Widget _buildNumberPickerSheet() {
+    int tempValue = maxPublicParticipants;
+
+    return Container(
+      height: 300,
+      decoration: BoxDecoration(
+        color: Color(0xFF091F1E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: CupertinoPicker(
+              backgroundColor: Color(0xFF091F1E),
+              itemExtent: 40,
+              scrollController:
+                  FixedExtentScrollController(initialItem: tempValue - 1),
+              onSelectedItemChanged: (index) {
+                tempValue = index + 1;
+              },
+              children: List.generate(
+                  50,
+                  (index) => Text(
+                        '${index + 1}',
+                        style: TextStyle(color: Colors.white, fontSize: 20),
+                      )),
+            ),
+          ),
+          CupertinoButton(
+            child: Text("Done", style: TextStyle(color: Color(0xFF03FFE2))),
+            onPressed: () {
+              Navigator.of(context).pop(tempValue);
+            },
+          ),
+          SizedBox(height: 10),
+        ],
+      ),
+    );
+  }
+
   Widget buildSelectedInviteesList() {
     final totalCount = selectedFriends.length + selectedCircles.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // SizedBox(height: 12),
         Row(
           children: [
             Text(
@@ -683,6 +854,7 @@ class _CreateGatheringCircleScreenState
                   builder: (_) => AddInviteegathering(
                     initialFriends: selectedFriends,
                     initialCircles: selectedCircles,
+                    initialContacts: selectedContacts,
                   ),
                 );
 
@@ -690,9 +862,14 @@ class _CreateGatheringCircleScreenState
                   setState(() {
                     selectedFriends = List<Map<String, String>>.from(
                         result['selectedFriends'] ?? []);
+
+                    selectedContacts = List<Map<String, String>>.from(
+                        result['selectedContacts'] ?? []);
                     selectedCircles =
                         List<CircleModel>.from(result['selectedCircles'] ?? []);
                   });
+
+                  log('selected contacts : $selectedContacts');
                 }
               },
               child: Row(
@@ -709,10 +886,18 @@ class _CreateGatheringCircleScreenState
         SizedBox(height: 12),
         ...selectedFriends.map((f) => ListTile(
               leading: CircleAvatar(
-                backgroundColor: Colors.grey[700],
+                backgroundColor: Colors.white,
                 child: Text(getInitials(f['name']!)),
               ),
               title: Text(f['name']!, style: TextStyle(color: Colors.white)),
+            )),
+        ...selectedContacts.map((f) => ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.white,
+                child: Text(getInitials(f['fullName']!)),
+              ),
+              title:
+                  Text(f['fullName']!, style: TextStyle(color: Colors.white)),
             )),
         ...selectedCircles.map((c) => ListTile(
               leading: CircleAvatar(
@@ -733,4 +918,12 @@ class _CreateGatheringCircleScreenState
       ],
     );
   }
+}
+
+String getPlacePhotoUrl(String photoReference) {
+  String? apiKey = dotenv.env['GOOGLE_API_KEY'];
+  return 'https://maps.googleapis.com/maps/api/place/photo'
+      '?maxwidth=400'
+      '&photoreference=$photoReference'
+      '&key=$apiKey';
 }

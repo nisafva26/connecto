@@ -1,9 +1,8 @@
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
+import 'package:connecto/helper/get_initials.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-
 
 class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
   const CommonAppBar({super.key});
@@ -17,12 +16,25 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
       padding: const EdgeInsets.symmetric(horizontal: 23).copyWith(top: 40),
       child: Row(
         children: [
-          const CircleAvatar(
-            radius: 20,
-            backgroundColor: Colors.white,
-            child: Icon(Icons.person),
-          ),
-          const SizedBox(width: 16),
+          userAsync.when(data: (user) {
+            return Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.white,
+                  child: Text(
+                    getInitials(user!.fullName),
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(width: 16),
+              ],
+            );
+          }, error: (err, stack) {
+            return SizedBox();
+          }, loading: () {
+            return SizedBox();
+          }),
 
           /// 🔹 User Name & Status
           userAsync.when(
@@ -33,8 +45,8 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
               return _buildText(user.fullName, user.phoneNumber);
             },
             loading: () => _buildText("Loading...", "Fetching data..."),
-            error: (err, stack) =>
-                _buildText("Error", "Could not fetch data", color: Colors.red, subColor: Colors.redAccent),
+            error: (err, stack) => _buildText("Error", "Could not fetch data",
+                color: Colors.red, subColor: Colors.redAccent),
           ),
 
           const Spacer(),

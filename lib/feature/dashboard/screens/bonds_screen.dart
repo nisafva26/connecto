@@ -3,23 +3,14 @@ import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connecto/feature/auth/model/user_model.dart';
 import 'package:connecto/feature/circles/screens/circle_list_screen.dart';
-import 'package:connecto/feature/circles/widgets/add_circle_modal.dart';
 import 'package:connecto/feature/dashboard/widgets/common_appbar.dart';
 import 'package:connecto/feature/dashboard/widgets/contacts_model.dart';
-import 'package:connecto/feature/dashboard/widgets/custom_switcher.dart';
-import 'package:connecto/feature/pings/model/chat_flag.dart';
-import 'package:connecto/feature/pings/model/ping_model.dart';
-import 'package:connecto/feature/pings/screens/ping_list_screen.dart';
 import 'package:connecto/helper/get_initials.dart';
-import 'package:connecto/main.dart';
-import 'package:contacts_service/contacts_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 String formatDate(DateTime date) {
   return DateFormat('dd-MM-yyyy').format(date);
@@ -93,14 +84,90 @@ class _BondScreenState extends ConsumerState<BondScreen> {
   int _selectedTabIndex = 0; // 0 for Friends, 1 for Circles
 
   @override
+  void initState() {
+    super.initState();
+    _checkPendingGatheringsIfNeeded();
+  }
+
+  Future<void> _checkPendingGatheringsIfNeeded() async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+    if (!(userDoc.data()?['hasCheckedPendingGatherings'] ?? false)) {
+      await handlePendingGatheringsAfterRegistration(
+        userId: uid,
+        fullName: userDoc.data()?['fullName'] ?? 'User',
+        phoneNumber: userDoc.data()?['phoneNumber'],
+      );
+
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        'hasCheckedPendingGatherings': true,
+      });
+    }
+  }
+
+  //one time function for newly regstered users to check wheterh they have any gahtering request in line
+  Future<void> handlePendingGatheringsAfterRegistration({
+    required String userId,
+    required String phoneNumber,
+    required String fullName,
+  }) async {
+    final firestore = FirebaseFirestore.instance;
+    final gatheringsCollection = firestore.collection('gatherings');
+
+    // Query all gatherings that include this phone in nonRegisteredInvitees
+    final query = await gatheringsCollection
+        .where('nonRegisteredInvitees.$phoneNumber', isGreaterThan: {}).get();
+
+    for (final doc in query.docs) {
+      final gatheringId = doc.id;
+      final gatheringData = doc.data();
+
+      final gatheringRef = gatheringsCollection.doc(gatheringId);
+
+      // Step 1: Remove from nonRegisteredInvitees map
+      await gatheringRef.update({
+        'nonRegisteredInvitees.$phoneNumber': FieldValue.delete(),
+        'invitees.$userId': {
+          'status': 'pending',
+          'host': false,
+          'name': fullName,
+        },
+      });
+
+      // Step 2: Remove from subcollection nonRegisteredInvitees
+      await gatheringRef
+          .collection('nonRegisteredInvitees')
+          .doc(phoneNumber)
+          .delete();
+
+      // Step 3: Add to invitees subcollection
+      await gatheringRef.collection('invitees').doc(userId).set({
+        'name': fullName,
+        'status': 'pending',
+        'host': false,
+        'sharing': true,
+      });
+
+      // Step 4: Update user's gathering list
+      await firestore.collection('users').doc(userId).set({
+        'gatherings': {
+          gatheringId: true,
+        },
+      }, SetOptions(merge: true));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final friendsList = ref.watch(friendsProvider);
-    final userAsync = ref.watch(currentUserProvider);
+    ref.watch(currentUserProvider);
 
     final flags = ref.watch(chatFlagsProvider).value ?? {};
 
     Future<String> getOrCreateChatId(String userId, String friendId) async {
-      final chatRef = FirebaseFirestore.instance.collection('chats');
+      FirebaseFirestore.instance.collection('chats');
 
       // // 🔹 Search for an existing chat
       // final querySnapshot =
@@ -171,6 +238,20 @@ class _BondScreenState extends ConsumerState<BondScreen> {
 
       log('✅ Chat created with ID: $newChatId');
       return newChatId;
+    }
+
+    Future<void> markChatFlagsAsSeen(String friendId) async {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+
+      final docRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('chatFlags')
+          .doc(friendId);
+
+      await docRef.update({
+        'isChatOpened': true,
+      });
     }
 
     return Scaffold(
@@ -349,6 +430,12 @@ class _BondScreenState extends ConsumerState<BondScreen> {
                           padding: EdgeInsets.all(0),
                           itemBuilder: (context, index) {
                             final friend = friends[index];
+
+                            final bool showIndicator =
+                                flags[friend.id]?['isChatOpened'] == false &&
+                                    flags[friend.id]?['latestPingFromFriend'] ==
+                                        true;
+
                             return Padding(
                                 padding:
                                     const EdgeInsets.symmetric(horizontal: 2),
@@ -356,6 +443,15 @@ class _BondScreenState extends ConsumerState<BondScreen> {
                                   onTap: () async {
                                     // final selectedPing =
                                     //     await context.push('/bond/select-ping');
+
+                                    // Mark flags as seen before navigating
+                                    if (flags[friend.id] != null) {
+                                      log('====flags exists====');
+
+                                      markChatFlagsAsSeen(friend.id);
+                                    } else {
+                                      log('====flags doesnt exists====');
+                                    }
 
                                     String chatId = await getOrCreateChatId(
                                         FirebaseAuth.instance.currentUser!.uid,
@@ -446,11 +542,43 @@ class _BondScreenState extends ConsumerState<BondScreen> {
                                             ],
                                           ),
                                           Spacer(),
-                                          Align(
-                                            alignment: Alignment.center,
-                                            child: Icon(Icons.chevron_right,
-                                                color: Color(0xff58616A)),
-                                          )
+                                          // Column(
+                                          //   children: [
+                                          //     Align(
+                                          //       alignment: Alignment.center,
+                                          //       child: Icon(Icons.chevron_right,
+                                          //           color: Color(0xff58616A)),
+                                          //     ),
+                                          //   ],
+                                          // )
+
+                                          Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              if (showIndicator)
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.all(6),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.tealAccent,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: Text(
+                                                    "1",
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.black,
+                                                    ),
+                                                  ),
+                                                ),
+                                              SizedBox(height: 6),
+                                              Icon(Icons.chevron_right,
+                                                  color: Color(0xff58616A)),
+                                            ],
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -482,7 +610,7 @@ class _BondScreenState extends ConsumerState<BondScreen> {
               backgroundColor: Color(0xFF03FFE2),
               shape: CircleBorder(),
               onPressed: () async {
-                final selectedContact = await showModalBottomSheet(
+                await showModalBottomSheet(
                   context: context,
                   isScrollControlled: true,
                   backgroundColor: Colors.transparent,
