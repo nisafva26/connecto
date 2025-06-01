@@ -42,7 +42,7 @@ class GatheringCard extends StatelessWidget {
         elevation: 0,
         child: InkWell(
           onTap: () {
-            context.push('/gathering-details/${gathering.id}',
+            context.go('/gathering/gathering-details/${gathering.id}',
                 extra: gathering);
           },
           child: Container(
@@ -183,7 +183,7 @@ class GatheringCard extends StatelessWidget {
                 const SizedBox(height: 14),
 
                 // Invitees stacked
-                _buildInviteeAvatars(inviteeNames),
+                buildInviteeAvatars(inviteeNames),
               ],
             ),
           ),
@@ -192,7 +192,7 @@ class GatheringCard extends StatelessWidget {
     );
   }
 
-  Widget _buildInviteeAvatars(List<String> names) {
+  Widget buildInviteeAvatars(List<String> names) {
     const double avatarSize = 24;
     const double overlap = 20;
 

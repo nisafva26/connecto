@@ -1,8 +1,11 @@
 import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connecto/feature/auth/controller/auth_provider.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
+import 'package:connecto/feature/discover/screens/discover_screen.dart';
 import 'package:connecto/feature/gatherings/screens/gathering_list.dart';
+import 'package:connecto/riverpod_observers/my_app_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,18 +30,18 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   int _getIndexFromPath(String path) {
-    if (path.contains('gathering')) return 0;
-    if (path.contains('bond')) return 1;
+    if (path.contains('discover')) return 0;
+    if (path.contains('gathering')) return 1;
+    if (path.contains('bond')) return 2;
 
-    if (path.contains('rank')) return 2;
     if (path.contains('profile')) return 3;
     return 0; // default to first tab
   }
 
   static List<Widget> pages = [
+    DiscoverScreen(),
     GatheringsTab(),
     BondScreen(),
-    RankScreen(),
     ProfileScreen(),
   ];
 
@@ -52,6 +55,7 @@ class _MainScreenState extends State<MainScreen> {
       // widget.child,
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
+        selectedItemColor: Color(0xff03FFE2),
         currentIndex: _selectedIndex,
         backgroundColor: Color(0xff091F1E),
         onTap: (index) {
@@ -76,13 +80,13 @@ class _MainScreenState extends State<MainScreen> {
         },
         items: const [
           BottomNavigationBarItem(
+              icon: Icon(Icons.circle_outlined), label: 'Discover'),
+          BottomNavigationBarItem(
               icon: Icon(Icons.hourglass_full), label: 'Gatherings'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.link),
+              icon: Icon(Icons.emoji_emotions_outlined),
               label: 'Bond',
               backgroundColor: Colors.white),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.leaderboard), label: 'Bond rank'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
@@ -156,7 +160,10 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     void logout(BuildContext context) async {
       log('inside logout feature');
-      await FirebaseAuth.instance.signOut();
+      //  await MyAppProviders.invalidateAllProviders(ref);
+      // await FirebaseAuth.instance.signOut();
+
+      ref.read(authProvider.notifier).logout(ref);
     }
 
     return Scaffold(

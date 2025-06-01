@@ -5,6 +5,8 @@ import 'package:connecto/feature/auth/screens/login_screen.dart';
 import 'package:connecto/feature/auth/screens/user_details_screen.dart';
 import 'package:connecto/feature/pings/model/ping_model.dart';
 import 'package:connecto/my_app.dart';
+import 'package:connecto/notification_handler.dart';
+import 'package:connecto/riverpod_observers/custom_provider_observer.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -14,13 +16,59 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
+import 'package:firebase_messaging/firebase_messaging.dart';
+
+// Future<void> _initNotifications() async {
+//   FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+//   NotificationSettings settings = await messaging.requestPermission(
+//     alert: true,
+//     badge: true,
+//     sound: true,
+//   );
+
+//   if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+//     print('✅ User granted permission');
+//   } else {
+//     print('❌ Permission declined');
+//   }
+
+//   // Handle foreground messages
+//   FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+//     print('📩 Foreground message: ${message.notification?.title}');
+//   });
+// }
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // If you're going to use other Firebase services in the background, such as Firestore,
+  // make sure you call `initializeApp` before using other Firebase services.
+  await Firebase.initializeApp();
+
+  print("Handling a background message: ${message.messageId}");
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // GoRouter.optionURLReflectsImperativeAPIs = true;
   await dotenv.load();
   await setUp();
   await Firebase.initializeApp();
-  runApp(ProviderScope(child: MyApp()));
+  // _initNotifications();
+  NotificationHandler.initialize(rootNavigatorKey);
+
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // Get the initial message
+  FirebaseMessaging.instance.getInitialMessage().then((message) {
+    if (message != null) {
+      print("App opened from initial notification: ${message.data}");
+      NotificationHandler.handleInitialMessage(rootNavigatorKey, message);
+      // Navigate to specific screen based on notification data
+    }
+  });
+
+  runApp(ProviderScope(observers: [CustomProviderObservers()], child: MyApp()));
 }
 
 Future<void> setUp() async {

@@ -235,7 +235,7 @@ class _UserDetailsScreenState extends ConsumerState<UserDetailsScreen> {
         //       builder: (context) => HomeScreen(user: user),
         //     ));
 
-        context.go('/bond');
+        context.go('/discover');
       } else if (status == UserDetailsState.error) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error saving user details.')));

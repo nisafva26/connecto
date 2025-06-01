@@ -525,3 +525,119 @@ exports.updateEndedGatherings = functions.pubsub
 
     return null;
   });
+
+
+
+// send notification
+exports.sendPingNotification = functions.https.onCall(async (data, context) => {
+  const { chatId, friendId, friendName, vibrationPattern , userId } = data;
+
+  if (!chatId || !friendId || !friendName || !vibrationPattern) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Missing one or more required fields."
+    );
+  }
+
+  try {
+    const userDoc = await admin.firestore().collection("users").doc(friendId).get();
+    if (!userDoc.exists) {
+      throw new functions.https.HttpsError("not-found", "Friend not found");
+    }
+
+    const fcmToken = userDoc.data().fcmToken;
+    if (!fcmToken) {
+      throw new functions.https.HttpsError("failed-precondition", "User has no FCM token");
+    }
+
+    const message = {
+      token: fcmToken,
+      data: {
+        type: "ping",
+        vibrationPattern: vibrationPattern,
+        chatId: chatId,
+        friendId: userId,
+        friendName: friendName,
+      },
+      notification: {
+        title: "Ping!",
+        body: `${friendName} sent you a ping!`,
+      },
+      android: {
+        priority: "high",
+      },
+      apns: {
+        headers: {
+          "apns-priority": "10",
+        },
+        payload: {
+          aps: {
+            alert: {
+              title: "Ping!",
+              body: `${friendName} sent you a ping!`
+            },
+            sound: "default",
+          },
+        },
+      },
+    };
+
+    await admin.messaging().send(message);
+
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Error sending ping:", error);
+    throw new functions.https.HttpsError("internal", error.message);
+  }
+});
+
+exports.sendGatheringNotification = functions.https.onCall(async (data, context) => {
+  const gatheringId = data.gatheringId;
+  if (!gatheringId) {
+    throw new functions.https.HttpsError("invalid-argument", "Gathering ID is required.");
+  }
+
+  const gatheringDoc = await admin.firestore().collection("gatherings").doc(gatheringId).get();
+  if (!gatheringDoc.exists) {
+    throw new functions.https.HttpsError("not-found", "Gathering not found.");
+  }
+
+  const gathering = gatheringDoc.data();
+  const invitees = gathering.invitees ?? {};
+  const fcmTokens = [];
+
+  for (const [uid, info] of Object.entries(invitees)) {
+    const userDoc = await admin.firestore().collection("users").doc(uid).get();
+    const token = userDoc.data()?.fcmToken;
+    if (token) fcmTokens.push(token);
+  }
+
+  const message = {
+    notification: {
+      title: `You're invited to ${gathering.name}`,
+      body: `Event at ${gathering.location?.name ?? 'a location'} on ${new Date(gathering.dateTime._seconds * 1000).toLocaleString()}`
+    },
+    data: {
+      type: "gathering",
+      gatheringId: gatheringId,
+    },
+    tokens: fcmTokens
+  };
+
+  const responses = await Promise.all(
+    fcmTokens.map(token =>
+      admin.messaging().send({
+        notification: message.notification,
+        data: message.data,
+        token: token,
+      }).then(() => ({ token, success: true }))
+        .catch(err => ({ token, success: false, error: err.message }))
+    )
+  );
+
+  console.log("FCM Send Results:", responses);
+
+  return { success: true, sent: fcmTokens.length };
+});
+
+

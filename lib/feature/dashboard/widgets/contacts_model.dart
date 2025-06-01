@@ -92,6 +92,7 @@ class _AddFriendModalState extends State<AddFriendModal> {
     if (selectedPhoneNumber != null) {
       print("✅ Friend added: $selectedPhoneNumber");
       // Navigator.pop(context,selectedPhoneNumber);
+     
       Navigator.pop(context);
       context.go(
           '/bond/friend-details/${Uri.encodeComponent(selectedContact!.displayName!)}/${selectedPhoneNumber}');

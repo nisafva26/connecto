@@ -11,6 +11,7 @@ import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
 import 'package:connecto/feature/circles/screens/create_circle_screen.dart';
 import 'package:connecto/feature/dashboard/screens/friends_details_screen.dart';
 import 'package:connecto/feature/dashboard/screens/home_screen.dart.dart';
+import 'package:connecto/feature/discover/screens/discover_screen.dart';
 import 'package:connecto/feature/gatherings/models/gathering_model.dart';
 import 'package:connecto/feature/gatherings/screens/create_gathering_circle.dart';
 import 'package:connecto/feature/gatherings/screens/create_gathering_screen.dart';
@@ -20,6 +21,7 @@ import 'package:connecto/feature/gatherings/screens/gathering_list.dart';
 import 'package:connecto/feature/gatherings/screens/select_location_screen.dart';
 import 'package:connecto/feature/pings/screens/ping_chat_screen.dart';
 import 'package:connecto/feature/video_creation/screens/video_from_photos_screen.dart';
+import 'package:connecto/notification_handler.dart';
 import 'package:connecto/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -28,7 +30,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ✅ Preserve navigation state
-final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _shellNavigatorKey =
     GlobalKey<NavigatorState>();
 
@@ -70,30 +72,30 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       : null; // ✅ Only watch if userId is not null
 
   return GoRouter(
-    navigatorKey: _rootNavigatorKey,
+    navigatorKey: rootNavigatorKey,
     debugLogDiagnostics: false,
     initialLocation: '/', // ✅ Start from last route
     observers: [NavigatorObserver()],
     // refreshListenable: GoRouterRefreshNotifier(ref),
     redirect: (context, state) {
       // log('user $user');
-      // if (user == null) return '/';
+      if (user == null) return '/';
 
-      if (user == null) {
-        final phone = state.uri.queryParameters['phone'] ??
-            ref.read(requestedPhoneProvider);
-        ;
-        log('phone in router: $phone');
-        final accessDoc =
-            ref.watch(accessRequestProvider(phone ?? '')).asData?.value;
+      // if (user == null) {
+      //   final phone = state.uri.queryParameters['phone'] ??
+      //       ref.read(requestedPhoneProvider);
+      //   ;
+      //   log('phone in router: $phone');
+      //   final accessDoc =
+      //       ref.watch(accessRequestProvider(phone ?? '')).asData?.value;
 
-        log('aacess doc : $accessDoc');
-        
-        if (accessDoc == null) {
-          return '/access-request';
-        }
-        return '/';
-      }
+      //   log('aacess doc : $accessDoc');
+
+      //   if (accessDoc == null) {
+      //     return '/access-request';
+      //   }
+      //   return '/';
+      // }
 
       // ✅ If Firebase redirects to an unrecognized deep link, stay on the same page
       if (state.uri.toString().contains("firebaseauth/link")) {
@@ -115,6 +117,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           log('inside redirect....${state.fullPath}');
           log("url : ${state.uri.toString()}");
 
+        
+
           // log('user $user');
           if (user == null) return '/';
 
@@ -131,8 +135,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
           if (userData != null && userData.exists) {
             log('====should go to bond');
-            return '/gathering';
+            return '/discover';
           } else if (userData != null && !userData.exists) {
+            log('user data is null , going to collect user data');
             return '/user-details';
           }
           return null;
@@ -154,7 +159,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'setting',
-                parentNavigatorKey: _rootNavigatorKey,
+                parentNavigatorKey: rootNavigatorKey,
                 builder: (context, state) =>
                     // SettingScreen()
                     VideoFromPhotosScreen(),
@@ -170,7 +175,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               //     }),
               GoRoute(
                 path: '/select-location',
-                parentNavigatorKey: _rootNavigatorKey,
+                parentNavigatorKey: rootNavigatorKey,
                 builder: (context, state) {
                   final eventType = state.extra as String;
                   return AddLocationScreen(eventType: eventType);
@@ -178,7 +183,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               ),
               GoRoute(
                 path: 'group-chat/:circleId',
-                parentNavigatorKey: _rootNavigatorKey,
+                parentNavigatorKey: rootNavigatorKey,
                 builder: (context, state) {
                   final circleId = state.pathParameters['circleId']!;
 
@@ -193,7 +198,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
               GoRoute(
                 path: 'chat/:chatId',
-                parentNavigatorKey: _rootNavigatorKey,
+                parentNavigatorKey: rootNavigatorKey,
                 builder: (context, state) {
                   final chatId = state.pathParameters['chatId']!;
                   final extra = state.extra as Map<String, dynamic>;
@@ -202,14 +207,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     chatId: chatId,
                     friendId: extra['friendId'],
                     friendName: extra['friendName'],
-                    friendProfilePic: extra['friendProfilePic'],
-                    friend: extra['friend'],
+                    // friendProfilePic: extra['friendProfilePic'],
+                    // friend: extra['friend'],
                   );
                 },
                 routes: [
                   GoRoute(
                     name: 'createGathering',
-                    parentNavigatorKey: _rootNavigatorKey,
+                    parentNavigatorKey: rootNavigatorKey,
                     path: 'create-gathering/:friendID',
                     builder: (context, state) {
                       final friendID = state.pathParameters['friendID']!;
@@ -224,7 +229,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               ),
               GoRoute(
                 path: 'create-circle',
-                parentNavigatorKey: _rootNavigatorKey,
+                parentNavigatorKey: rootNavigatorKey,
                 builder: (context, state) {
                   final Map<String, dynamic> data =
                       state.extra as Map<String, dynamic>;
@@ -236,7 +241,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               ),
               GoRoute(
                 path: 'friend-details/:name/:phoneNumber',
-                parentNavigatorKey: _rootNavigatorKey,
+                parentNavigatorKey: rootNavigatorKey,
                 builder: (context, state) {
                   final name = state.pathParameters['name'] ?? 'Unknown';
                   final phoneNumber =
@@ -253,15 +258,24 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               routes: [
                 GoRoute(
                   // name: 'createGatheringCircle',
-                  parentNavigatorKey: _rootNavigatorKey,
+                  parentNavigatorKey: rootNavigatorKey,
                   path: 'create-gathering-circle',
                   builder: (context, state) {
                     return CreateGatheringCircleScreen();
                   },
                 ),
                 GoRoute(
+                  path: 'gathering-details/:gatheringId',
+                  // use your app's root navigator key
+                  parentNavigatorKey: rootNavigatorKey,
+                  builder: (context, state) {
+                    final gatheringId = state.pathParameters['gatheringId']!;
+                    return GatheringDetailsScreen(gatheringId: gatheringId);
+                  },
+                ),
+                GoRoute(
                   path: 'edit',
-                  parentNavigatorKey: _rootNavigatorKey,
+                  parentNavigatorKey: rootNavigatorKey,
                   builder: (context, state) {
                     final gathering = state.extra as GatheringModel;
                     return EditGatheringCircle(gathering: gathering);
@@ -269,23 +283,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 ),
               ]),
           GoRoute(
-            path: '/rank',
-            builder: (context, state) => RankScreen(),
+            path: '/discover',
+            builder: (context, state) => DiscoverScreen(),
           ),
           GoRoute(
             path: '/profile',
             builder: (context, state) => ProfileScreen(),
           ),
         ],
-      ),
-
-      GoRoute(
-        path: '/gathering-details/:gatheringId',
-        // use your app's root navigator key
-        builder: (context, state) {
-          final gatheringId = state.pathParameters['gatheringId']!;
-          return GatheringDetailsScreen(gatheringId: gatheringId);
-        },
       ),
 
       GoRoute(
@@ -329,13 +334,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             });
             Future.delayed(Duration(seconds: 3), () {
               if (userData != null && userData.exists) {
-                return '/gathering'; // ✅ Move to bond screen after delay
+                return '/discover'; // ✅ Move to bond screen after delay
               } else if (userData != null && !userData.exists) {
                 return '/user-details'; // ✅ Move to user-details if needed
               }
             });
           } else {
-            if (userData != null && userData.exists) return '/gathering';
+            if (userData != null && userData.exists) return '/discover';
             if (userData != null && !userData.exists) return '/user-details';
           }
 
@@ -346,15 +351,45 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class MyApp extends ConsumerWidget {
+// class MyApp extends ConsumerWidget {
+//   @override
+//   Widget build(BuildContext context, WidgetRef ref) {
+//     final router = ref.watch(goRouterProvider); // ✅ Use GoRouter from provider
+//     return MaterialApp.router(
+//       // routerConfig: router,
+//       routeInformationParser: router.routeInformationParser,
+//       routeInformationProvider: router.routeInformationProvider,
+//       routerDelegate: router.routerDelegate,
+//       theme: AppTheme.lightTheme,
+//       title: 'Connecto',
+//     );
+//   }
+// }
+
+class MyApp extends ConsumerStatefulWidget {
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(goRouterProvider); // ✅ Use GoRouter from provider
+  ConsumerState<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends ConsumerState<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Setup notification tap handling with context
+    Future.microtask(() {
+      // NotificationHandler.handleInitialMessage(context);
+      // NotificationHandler.listenToForegroundMessages(context);
+      NotificationHandler.listenToMessageTap(context);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final router = ref.watch(goRouterProvider);
     return MaterialApp.router(
-      // routerConfig: router,
+      routerDelegate: router.routerDelegate,
       routeInformationParser: router.routeInformationParser,
       routeInformationProvider: router.routeInformationProvider,
-      routerDelegate: router.routerDelegate,
       theme: AppTheme.lightTheme,
       title: 'Connecto',
     );

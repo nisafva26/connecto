@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connecto/feature/auth/screens/login_screen.dart';
 import 'package:connecto/my_app.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum AuthState {
@@ -66,6 +67,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // ✅ Ensure `justLoggedInProvider` is updated
       ref.read(justLoggedInProvider.notifier).state = true;
       log('justLoggedInProvider set to: ${ref.read(justLoggedInProvider)}');
+      
 
       state = AuthState.authenticated; // Move to success screen
     } catch (e) {
@@ -73,6 +75,39 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState.otpError;
     }
   }
+
+  Future<void> logout(WidgetRef ref) async {
+  try {
+    final uid = _auth.currentUser?.uid;
+
+    // ❌ Optional: Remove FCM token from Firestore
+    // if (uid != null) {
+    //   await _firestore.collection('users').doc(uid).update({
+    //     'fcmToken': FieldValue.delete(),
+    //   });
+    // }
+
+    // ✅ Sign out from Firebase
+    await _auth.signOut();
+
+    // ✅ Invalidate providers or user-specific streams
+    // ref.invalidate(currentUserProvider);
+    // ref.invalidate(userDataProvider);
+    // ref.invalidate(gatheringListProvider);
+    // ref.invalidate(chatListProvider);
+    // Add any others you use...
+
+    // ✅ Reset state
+    state = AuthState.idle;
+
+    log("✅ Logout successful.");
+  } catch (e) {
+    log("❌ Logout failed: $e");
+  }
+}
+
+
+
 }
 
 // Riverpod Provider for AuthNotifier

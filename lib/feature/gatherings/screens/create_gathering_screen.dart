@@ -57,7 +57,7 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
     );
 
     if (result != null) {
-      final photoRef = selectedPlace!.photos.first.photoReference;
+      final photoRef = result.photos.first.photoReference;
       setState(() {
         selectedPlace = result;
         selectedPhotoRef = photoRef;

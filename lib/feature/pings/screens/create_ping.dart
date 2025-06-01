@@ -1,9 +1,12 @@
+import 'dart:developer';
+
 import 'package:connecto/feature/pings/model/ping_model.dart';
 import 'package:connecto/feature/pings/widgets/ping_visulaizer.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:vibration/vibration.dart';
 
 class CreatePingScreen extends StatefulWidget {
   @override
@@ -23,10 +26,12 @@ class _CreatePingScreenState extends State<CreatePingScreen> {
   ];
 
   void _playVibration(List<int> pattern) async {
-    // bool canVibrate = await Vibrate.canVibrate;
-    // if (canVibrate) {
-    //   Vibrate.vibrateWithPauses(pattern.map((d) => Duration(milliseconds: d)).toList());
-    // }
+    bool canVibrate = await Vibration.hasVibrator();
+    if (canVibrate) {
+      Vibration.vibrate(pattern: pattern);
+    } else {
+      log("Device does not support haptic feedback.");
+    }
   }
 
   void _savePing() {

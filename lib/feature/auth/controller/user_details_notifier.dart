@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:connecto/feature/auth/model/user_model.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -47,6 +48,8 @@ class UserDetailsNotifier extends StateNotifier<UserModel?> {
             .set(state!.toMap());
         stateStatus = UserDetailsState.success;
 
+        updateUserFcmToken();
+
         ref
             .read(userDetailsStateProvider.notifier)
             .update((state) => UserDetailsState.success);
@@ -58,6 +61,24 @@ class UserDetailsNotifier extends StateNotifier<UserModel?> {
             .read(userDetailsStateProvider.notifier)
             .update((state) => UserDetailsState.error);
       }
+    }
+  }
+
+  Future<void> updateUserFcmToken() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken != null) {
+        log('going to update fcm token : $fcmToken');
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'fcmToken': fcmToken,
+          'lastTokenUpdated': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    } catch (e) {
+      print("❌ Error saving FCM token: $e");
     }
   }
 }

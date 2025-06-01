@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -39,24 +40,24 @@ class CreateGatheringNotifier extends StateNotifier<CreateGatheringState> {
   CreateGatheringNotifier(this.firestore, this.auth)
       : super(const CreateGatheringState());
 
-  Future<void> createGathering({
-    required String gatheringName,
-    required String eventType,
-    required DateTime dateTime,
-    required String recurrenceType,
-    required bool isRecurring,
-    required Map<String, dynamic> location,
-    required List<Map<String, String>> inviteesWithNames,
-    required String hostName,
-    List<Map<String, String>> allContacts = const [], // optional
-    bool isPublic = false, // new
-    int maxPublicParticipants = 0, // new
-   required String photoRef
-  }) async {
+  Future<void> createGathering(
+      {required String gatheringName,
+      required String eventType,
+      required DateTime dateTime,
+      required String recurrenceType,
+      required bool isRecurring,
+      required Map<String, dynamic> location,
+      required List<Map<String, String>> inviteesWithNames,
+      required String hostName,
+      List<Map<String, String>> allContacts = const [], // optional
+      bool isPublic = false, // new
+      int maxPublicParticipants = 0, // new
+      required String photoRef}) async {
     state = state.copyWith(status: CreateGatheringStatus.loading);
 
     try {
       final hostId = auth.currentUser!.uid;
+      final hostPhoneNumber = auth.currentUser!.phoneNumber;
 
       /// 🔍 Step 0: Identify which non-registered contacts are actually registered
       /// 🔍 Step 0: Identify which non-registered contacts are actually registered
@@ -119,6 +120,7 @@ class CreateGatheringNotifier extends StateNotifier<CreateGatheringState> {
         hostId: {
           "status": "accepted",
           "host": true,
+          "phoneNumber":hostPhoneNumber??'',
           "name": hostName,
           "respondedAt": Timestamp.now(),
         },
@@ -149,7 +151,7 @@ class CreateGatheringNotifier extends StateNotifier<CreateGatheringState> {
         "isPublic": isPublic,
         "maxPublicParticipants": maxPublicParticipants,
         "joinedPublicUsers": {}, // initially empty
-        "photoRef":photoRef
+        "photoRef": photoRef
       });
 
       final gatheringId = gatheringDoc.id;
@@ -212,12 +214,25 @@ class CreateGatheringNotifier extends StateNotifier<CreateGatheringState> {
         }, SetOptions(merge: true));
       }
 
+      triggerSendGatheringNotification(gatheringId);
+
       state = state.copyWith(status: CreateGatheringStatus.success);
     } catch (e) {
       state = state.copyWith(
         status: CreateGatheringStatus.error,
         errorMessage: e.toString(),
       );
+    }
+  }
+
+  Future<void> triggerSendGatheringNotification(String gatheringId) async {
+    try {
+      final callable =
+          FirebaseFunctions.instance.httpsCallable('sendGatheringNotification');
+      final result = await callable.call({'gatheringId': gatheringId});
+      print('✅ Notification sent to ${result.data['sent']} invitees');
+    } catch (e) {
+      print('❌ Error sending notification: $e');
     }
   }
 

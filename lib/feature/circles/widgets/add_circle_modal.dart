@@ -50,8 +50,9 @@ class _AddCircleModalState extends ConsumerState<AddCircleModal> {
     try {
       List<Contact> fetchedContacts = (await FlutterContacts.getContacts(
               withProperties: true))
-          .where((c) => c.phones!.isNotEmpty) // Filter contacts without numbers
-          .toList();
+           .where((c) =>
+            c.phones.isNotEmpty && (c.displayName.trim().isNotEmpty) )
+        .toList();
       setState(() {
         contacts = fetchedContacts;
         filteredContacts = contacts;
@@ -66,9 +67,9 @@ class _AddCircleModalState extends ConsumerState<AddCircleModal> {
     String query = searchController.text.toLowerCase();
     setState(() {
       filteredContacts = contacts.where((contact) {
-        String name = contact.displayName?.toLowerCase() ?? '';
+        String name = contact.displayName.toLowerCase();
         String number =
-            contact.phones!.isNotEmpty ? contact.phones!.first.number : '';
+            contact.phones.isNotEmpty ? contact.phones.first.number : '';
         return name.contains(query) || number.contains(query);
       }).toList();
     });

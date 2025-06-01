@@ -51,8 +51,10 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
           const Spacer(),
           IconButton(
-            onPressed: () => context.go('/bond/setting'),
-            icon: const Icon(Icons.settings, color: Colors.white),
+            onPressed: () {
+              // context.go('/bond/setting');
+            },
+            icon: const Icon(Icons.settings, color: Colors.transparent),
           ),
         ],
       ),

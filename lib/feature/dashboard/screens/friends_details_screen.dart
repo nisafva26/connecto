@@ -1,8 +1,8 @@
-
 import 'package:connecto/feature/dashboard/controller/friend_details_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:loading_indicator/loading_indicator.dart';
 
 class FriendDetailsScreen extends ConsumerStatefulWidget {
   final String name;
@@ -60,9 +60,31 @@ class _FriendDetailsScreenState extends ConsumerState<FriendDetailsScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: _saveFriendDetails,
+            onPressed: friendState.isFriendAlreadyAdded
+                ? null
+                : () async {
+                    if (friendState.isUserInDB) {
+                      await ref
+                          .read(friendDetailsProvider.notifier)
+                          .addFriend(selectedRelationship ?? "Friend");
+                      context.pop();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            "We don’t have an invite link yet. Please ask your friend to download Connecto from the app store.",
+                          ),
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  },
             child: Text(
-              "Add",
+              friendState.isFriendAlreadyAdded
+                  ? "Already added"
+                  : friendState.isUserInDB
+                      ? "Add Friend"
+                      : "Invite",
               style: TextStyle(color: Colors.tealAccent[700], fontSize: 16),
             ),
           )
@@ -163,15 +185,36 @@ class _FriendDetailsScreenState extends ConsumerState<FriendDetailsScreen> {
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: () async {
-                        friendState.isFriendAlreadyAdded
-                            ? null
-                            : await ref
-                                .read(friendDetailsProvider.notifier)
-                                .addFriend(selectedRelationship ?? "Friend");
+                      // onPressed: () async {
+                      //   friendState.isFriendAlreadyAdded
+                      //       ? null
+                      //       : await ref
+                      //           .read(friendDetailsProvider.notifier)
+                      //           .addFriend(selectedRelationship ?? "Friend");
 
-                        context.pop();
-                      },
+                      //   context.pop();
+                      // },
+
+                      onPressed: friendState.isFriendAlreadyAdded
+                          ? null
+                          : () async {
+                              if (friendState.isUserInDB) {
+                                await ref
+                                    .read(friendDetailsProvider.notifier)
+                                    .addFriend(
+                                        selectedRelationship ?? "Friend");
+                                context.pop();
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      "We don’t have an invite link yet. Please ask your friend to download Connecto from the app store.",
+                                    ),
+                                    duration: Duration(seconds: 3),
+                                  ),
+                                );
+                              }
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Color(0xFF03FFE2),
                         foregroundColor: Colors.black,
@@ -179,7 +222,13 @@ class _FriendDetailsScreenState extends ConsumerState<FriendDetailsScreen> {
                             borderRadius: BorderRadius.circular(8)),
                       ),
                       child: friendState.isButtonLoading
-                          ? CircularProgressIndicator()
+                          ? SizedBox(
+                              height: 40,
+                              child: LoadingIndicator(
+                                indicatorType: Indicator.ballBeat,
+                                colors: [Colors.black],
+                              ),
+                            )
                           : Text(
                               friendState.isFriendAlreadyAdded
                                   ? "Already added"

@@ -65,6 +65,7 @@ class _AccessRequestScreenState extends ConsumerState<AccessRequestScreen> {
           Fluttertoast.showToast(
               msg: "Access already approved! Redirecting...");
           Future.delayed(const Duration(seconds: 2), () {
+            if (!mounted) return;
             context.go(
                 Uri(path: '/', queryParameters: {'phone': phone}).toString());
           });
@@ -113,6 +114,7 @@ class _AccessRequestScreenState extends ConsumerState<AccessRequestScreen> {
           );
 
           Future.delayed(Duration(seconds: 1), () {
+            if (!mounted) return;
             context.go(Uri(path: '/', queryParameters: {'phone': _fullPhone})
                 .toString());
           });

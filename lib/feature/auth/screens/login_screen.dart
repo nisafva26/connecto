@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:connecto/common_widgets/continue_button.dart';
+import 'package:connecto/common_widgets/continue_button_with_loading.dart';
 import 'package:connecto/feature/auth/controller/auth_provider.dart';
 import 'package:connecto/feature/auth/screens/login_success.dart';
 import 'package:connecto/my_app.dart';
@@ -8,6 +9,7 @@ import 'package:connecto/my_app.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:lottie/lottie.dart';
@@ -25,7 +27,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   TextEditingController otpController = TextEditingController();
   String? phoneNumber;
   bool isPhoneValid = false;
-  int countryPhoneLength = 9;
+  int countryPhoneLength = 10;
+  String countryPhoneCode = '91';
 
   // void _validatePhoneNumber(String? number, bool isValid) {
   //   setState(() {
@@ -39,10 +42,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final authState = ref.watch(authProvider);
 
     if (authState == AuthState.idle || authState == AuthState.error) {
-      if (phoneController.text.length < countryPhoneLength ||
-          phoneController.text.length > countryPhoneLength) {
-        authNotifier.sendOTP('+91${phoneController.text.trim()}', ref);
+      // if (phoneController.text.length < countryPhoneLength ||
+      //     phoneController.text.length > countryPhoneLength)
+      if (phoneController.text.length == countryPhoneLength) {
+        authNotifier.sendOTP(
+            '+$countryPhoneCode${phoneController.text.trim()}', ref);
       } else {
+        log('phone lenght : ${phoneController.text.length} - ${phoneController.text}');
+        log('country length : ${countryPhoneLength}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Please enter a valid phone number")),
         );
@@ -77,47 +84,51 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             backgroundColor: Colors.red,
           ),
         );
+      } else if (next == AuthState.otpSent) {
+        Fluttertoast.showToast(msg: "OTP sent successfully.");
+      } else if (next == AuthState.verifying) {
+        Fluttertoast.showToast(msg: "Verifying OTP...");
       }
     });
 
     log('===state : ====$authState');
 
     return Scaffold(
-  backgroundColor: const Color(0xFF001311),
-  body: LayoutBuilder(
-    builder: (context, constraints) {
-      return Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0)
-                  .copyWith(top: 40),
-              child: IntrinsicHeight(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 500),
-                  transitionBuilder: (widget, animation) {
-                    return FadeTransition(opacity: animation, child: widget);
-                  },
-                  child: (authState == AuthState.otpSent ||
-                          authState == AuthState.otpError ||
-                          authState == AuthState.verifying)
-                      ? buildOTPInput()
-                      : buildPhoneNumberInput(),
+      backgroundColor: const Color(0xFF001311),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0)
+                      .copyWith(top: 40),
+                  child: IntrinsicHeight(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 500),
+                      transitionBuilder: (widget, animation) {
+                        return FadeTransition(
+                            opacity: animation, child: widget);
+                      },
+                      child: (authState == AuthState.otpSent ||
+                              authState == AuthState.otpError ||
+                              authState == AuthState.verifying)
+                          ? buildOTPInput()
+                          : buildPhoneNumberInput(authState),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          buildCustomNumberPad(), // stays fixed below
-          const SizedBox(height: 10),
-        ],
-      );
-    },
-  ),
-);
-
+              buildCustomNumberPad(), // stays fixed below
+              const SizedBox(height: 10),
+            ],
+          );
+        },
+      ),
+    );
   }
 
-  Widget buildPhoneNumberInput() {
+  Widget buildPhoneNumberInput(AuthState authState) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -170,12 +181,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           onCountryChanged: (value) {
             setState(() {
               countryPhoneLength = value.minLength;
+              countryPhoneCode = value.dialCode;
             });
+            log('country phone length : $countryPhoneLength');
+            log('country phone code : $countryPhoneCode');
           },
         ),
         // Spacer(),
         SizedBox(height: 20),
-        ContinueButton(
+        ContinueButtonWithLoading(
+          isLoading: authState == AuthState.sendingOtp,
           onPressed:
               // ref.watch(authProvider) == AuthState.sendingOtp
               //     ? () {}
@@ -209,7 +224,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
         SizedBox(height: 10),
         Text(
-          "Check your SMS inbox, we have sent the code at \n+971 000 000 000.",
+          "Check your SMS inbox, we have sent the code at \n+$countryPhoneCode${phoneController.text}",
           style: TextStyle(fontSize: 16, color: Colors.grey[400]),
         ),
         SizedBox(height: 20),

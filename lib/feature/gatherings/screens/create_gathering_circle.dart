@@ -48,7 +48,7 @@ class _CreateGatheringCircleScreenState
   final List<Map<String, dynamic>> activities = [
     {"name": "Football", "icon": Icons.sports_soccer},
     {"name": "Birthday", "icon": Icons.celebration},
-    {"name": "Desert", "icon": Icons.terrain},
+    {"name": "Desert camping", "icon": Icons.terrain},
     {"name": "Padel Tennis", "icon": Icons.sports_tennis},
     {"name": "Coffee", "icon": Icons.local_cafe},
     {"name": "Other", "icon": Icons.group},

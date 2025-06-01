@@ -242,6 +242,7 @@ class _GatheringDetailsScreenState
 
   @override
   Widget build(BuildContext context) {
+    log('gatherin g id : ${widget.gatheringId}');
     Future<void> handlePing(
       BuildContext context,
       WidgetRef ref,
@@ -403,6 +404,8 @@ class _GatheringDetailsScreenState
           final difference = gathering.dateTime.difference(now);
           final isUpcoming = difference.inSeconds > 0;
           final absMinutes = difference.inMinutes.abs();
+          final end = gathering.dateTime.add(Duration(minutes: 60));
+          final isEnded = now.isAfter(end);
 
           final canEdit = difference.inMinutes > 180; // ✅ 3 hours = 180 minutes
 
@@ -528,7 +531,7 @@ class _GatheringDetailsScreenState
           return Scaffold(
             backgroundColor: Color(0xff001311),
             appBar: buildGatheringDetailsAppBAr(gatheringAsync, context,
-                isUpcoming, difference, canEdit, isHost),
+                isUpcoming, difference, canEdit, isHost, isEnded),
             body:
                 // log('my status : ${gathering.invitees[uid]?.status}');
                 // log('current uid : $uid : host id : ${gathering.hostId}');
@@ -543,6 +546,7 @@ class _GatheringDetailsScreenState
                     width: MediaQuery.of(context).size.width,
                     child: map.MapWidget(
                         key: ValueKey("map-${gathering.id}"),
+                   
                         styleUri: map.MapboxStyles.DARK,
                         cameraOptions: map.CameraOptions(
                           center: map.Point(
@@ -551,7 +555,7 @@ class _GatheringDetailsScreenState
                               gathering.location.lat,
                             ),
                           ),
-                          zoom: 5,
+                          zoom: 10,
                         ),
                         onMapCreated: (mapController) async {
                           final ByteData bytes = await rootBundle
@@ -754,7 +758,9 @@ class _GatheringDetailsScreenState
                                         inviteeEntries: inviteeEntries,
                                         inviteeETAs: inviteeETAs,
                                         travelStatuses: travelStatuses,
-                                        currentUserId: currentUserId),
+                                        currentUserId: currentUserId,
+                                        gathering: gathering,
+                                        ),
                                     if (nonRegisteredEntries.isNotEmpty) ...[
                                       SizedBox(
                                         height: 24,
@@ -1061,10 +1067,12 @@ class _GatheringDetailsScreenState
       bool isUpcoming,
       Duration difference,
       bool canEdit,
-      bool isHost) {
+      bool isHost,
+      bool isEnded) {
     return PreferredSize(
       preferredSize: Size.fromHeight(96),
       child: gatheringAsync.when(data: (gathering) {
+        log('gathering state : ${gathering.status}');
         return SafeArea(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1147,6 +1155,24 @@ class _GatheringDetailsScreenState
                               fontFamily: 'Inter',
                               fontWeight: FontWeight.w600,
                               color: Colors.black,
+                            ),
+                          ),
+                        ),
+                      if (gathering.status == 'ended')
+                        Container(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Event completed',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'Inter',
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
                             ),
                           ),
                         ),

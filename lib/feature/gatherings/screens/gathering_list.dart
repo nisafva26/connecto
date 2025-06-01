@@ -6,6 +6,7 @@ import 'package:connecto/feature/gatherings/models/gathering_model.dart';
 import 'package:connecto/feature/gatherings/widgets/empty_invite_card.dart';
 import 'package:connecto/feature/gatherings/widgets/gathering_card.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -159,6 +160,32 @@ class GatheringsTab extends ConsumerStatefulWidget {
 
 class _GatheringsTabState extends ConsumerState<GatheringsTab> {
   int _selectedTabIndex = 0;
+
+  Future<void> updateUserFcmToken() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken != null) {
+        log('going to update fcm token : $fcmToken');
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'fcmToken': fcmToken,
+          'lastTokenUpdated': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    } catch (e) {
+      print("❌ Error saving FCM token: $e");
+    }
+  }
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    updateUserFcmToken();
+  }
+
   @override
   Widget build(BuildContext context) {
     final pendingAsync = ref.watch(pendingGatheringsProvider);
@@ -273,7 +300,7 @@ class _GatheringsTabState extends ConsumerState<GatheringsTab> {
                     : Column(
                         children: publicList
                             .map((g) =>
-                                GatheringCard(gathering: g, isPending: true))
+                                GatheringCard(gathering: g, isPending: false))
                             .toList(),
                       ),
                 loading: () => _loadingWidget(),

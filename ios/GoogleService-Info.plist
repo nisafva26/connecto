@@ -3,9 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>699211054489-uj2iej9epf71lbgaj8vfdlbkqm6pjgov.apps.googleusercontent.com</string>
+	<string>699211054489-isjeh1o9r5qr496vatmfpus7s4o62mnv.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.699211054489-uj2iej9epf71lbgaj8vfdlbkqm6pjgov</string>
+	<string>com.googleusercontent.apps.699211054489-isjeh1o9r5qr496vatmfpus7s4o62mnv</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>699211054489-8lbpvocidprqep7oojvbrldbrnejo9dj.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
 	<string>AIzaSyBwI8RxHawDqMaaiT9juyvmacwkfdvRzPE</string>
 	<key>GCM_SENDER_ID</key>
@@ -13,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.connecto</string>
+	<string>com.fogtheagency.connectoapp</string>
 	<key>PROJECT_ID</key>
 	<string>connecto-fb0a4</string>
 	<key>STORAGE_BUCKET</key>
@@ -29,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:699211054489:ios:8dea73d9f7f43df52be708</string>
+	<string>1:699211054489:ios:24ae7d5ba25884762be708</string>
 </dict>
 </plist>

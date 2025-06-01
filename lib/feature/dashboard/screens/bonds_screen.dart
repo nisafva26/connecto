@@ -359,6 +359,9 @@ class _BondScreenState extends ConsumerState<BondScreen> {
                                   width: 160,
                                   height: 160,
                                   decoration: BoxDecoration(
+                                      image: DecorationImage(
+                                          image: AssetImage(
+                                              'assets/images/avatar.png')),
                                       shape: BoxShape.circle,
                                       color: Colors.white),
                                 ),

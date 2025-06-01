@@ -54,6 +54,9 @@ class CircleNotifier extends StateNotifier<CircleState> {
         }
       }
 
+      log('registered id : $registeredUserIds');
+      log('un registered id : $unregisteredUsers');
+
       // 🔹 Create Circle Document in Firestore
       await circleRef.set({
         'circleName': circleName,
