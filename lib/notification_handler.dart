@@ -90,7 +90,8 @@ class NotificationHandler {
     });
   }
 
-  static void handleInitialMessage( GlobalKey<NavigatorState> navigatorKey,RemoteMessage msg) async {
+  static void handleInitialMessage(
+      GlobalKey<NavigatorState> navigatorKey, RemoteMessage msg) async {
     // final msg = await _firebaseMessaging.getInitialMessage();
 
     log('notification message : $msg');
@@ -132,6 +133,18 @@ class NotificationHandler {
       // You can also navigate to chat screen here if needed:
       // GoRouter.of(navigatorKey.currentContext!).go('/bond/chat/$friendId');
       return;
+    } else if (route == 'groupPing') {
+      final circleId = message.data['circleId'];
+      _vibrateWithPattern(vibrationRaw);
+      GoRouter.of(navigatorKey.currentContext!).go('/dummy');
+      Future.delayed(Duration(milliseconds: 10), () {
+        GoRouter.of(navigatorKey.currentContext!).go('/bond', extra: 1);
+      });
+
+      // GoRouter.of(navigatorKey.currentContext!).pushReplacementNamed(
+      //   'bond',
+      //   extra: 1,
+      // );
     }
 
     // Add more route handling logic here as needed

@@ -4,8 +4,8 @@ import 'package:connecto/helper/get_initials.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-Widget buildCircleTile(CircleModel circle, BuildContext context) {
-  
+Widget buildCircleTile(
+    CircleModel circle, BuildContext context, bool hasPendingMessage) {
   final fontColor = hexToColor(circle.circleColor).computeLuminance() > 0.5
       ? Colors.black
       : Colors.white;
@@ -58,8 +58,55 @@ Widget buildCircleTile(CircleModel circle, BuildContext context) {
               )
             ],
           ),
+
+          if (hasPendingMessage)
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Color(0xFF03FFE2).withOpacity(0.15), // subtle background
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: Color(0xFF03FFE2),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'New ping',
+                    style: TextStyle(
+                      color: Color(0xFF03FFE2),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Row(
+          //   children: [
+          //     Text('New ping',style: TextStyle(fontWeight: FontWeight.w600),),
+          //     SizedBox(width: 8,),
+          //     Container(
+          //       width: 10,
+          //       height: 10,
+          //       decoration: BoxDecoration(
+          //         color: Colors.greenAccent,
+          //         shape: BoxShape.circle,
+          //       ),
+          //     ),
+          //   ],
+          // ),
           SizedBox(
-            height: 32,
+            height: 8,
           ),
           Row(
             spacing: 8,

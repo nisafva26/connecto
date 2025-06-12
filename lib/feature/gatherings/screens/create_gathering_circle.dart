@@ -1,8 +1,11 @@
 import 'dart:developer';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connecto/feature/auth/model/user_model.dart';
 import 'package:connecto/feature/circles/models/circle_model.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
+import 'package:connecto/feature/gatherings/data/acitivity_data.dart';
 import 'package:connecto/feature/gatherings/providers/gathering_provider.dart';
 import 'package:connecto/feature/gatherings/screens/select_location_screen.dart';
 import 'package:connecto/feature/gatherings/widgets/gathering_invitee_bottom_modal.dart';
@@ -15,10 +18,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_google_maps_webservices/places.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:loading_indicator/loading_indicator.dart';
 
 class CreateGatheringCircleScreen extends ConsumerStatefulWidget {
-  CreateGatheringCircleScreen();
+  final PlacesSearchResult? place;
+  final String? initialActivity;
+  final List<UserModel>? registeredUsers;
+  final List<Map<String, String>>? unregisteredUsers;
+  CreateGatheringCircleScreen({
+    this.place,
+    this.initialActivity,
+    this.registeredUsers,
+    this.unregisteredUsers,
+  });
   @override
   _CreateGatheringCircleScreenState createState() =>
       _CreateGatheringCircleScreenState();
@@ -45,14 +58,7 @@ class _CreateGatheringCircleScreenState
 
   String? selectedPhotoRef = '';
 
-  final List<Map<String, dynamic>> activities = [
-    {"name": "Football", "icon": Icons.sports_soccer},
-    {"name": "Birthday", "icon": Icons.celebration},
-    {"name": "Desert camping", "icon": Icons.terrain},
-    {"name": "Padel Tennis", "icon": Icons.sports_tennis},
-    {"name": "Coffee", "icon": Icons.local_cafe},
-    {"name": "Other", "icon": Icons.group},
-  ];
+  final List<Map<String, dynamic>> activities = activityList;
 
   String? selectedActivity;
 
@@ -68,15 +74,12 @@ class _CreateGatheringCircleScreenState
     );
 
     if (result != null) {
+      final photoRef = result.photos.first.photoReference;
 
-       final photoRef = result.photos.first.photoReference;
-     
       setState(() {
         selectedPlace = result;
         selectedPhotoRef = photoRef;
       });
-
-
     }
   }
 
@@ -143,6 +146,29 @@ class _CreateGatheringCircleScreenState
     // if (inviteeIds.isEmpty) return false;
 
     return true;
+  }
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    selectedPlace = widget.place; // ✅ assign place to selectedPlace
+    selectedActivity = widget.initialActivity;
+
+    if (widget.registeredUsers != null) {
+      selectedFriends = widget.registeredUsers!
+          .map((user) => {"id": user.id, "name": user.fullName})
+          .toList();
+    }
+
+    if (widget.unregisteredUsers != null) {
+      selectedContacts = widget.unregisteredUsers!
+          .map((contact) => {
+                "phoneNumber": contact['phoneNumber'] ?? "",
+                "fullName": contact['fullName'] ?? ""
+              })
+          .toList();
+    }
   }
 
   @override
@@ -345,45 +371,69 @@ class _CreateGatheringCircleScreenState
                             )
                           ],
                         )
-                      : Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      : Column(
                           children: [
-                            Icon(Icons.location_on, color: Colors.white),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    selectedPlace?.name ?? "Add location",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontFamily: 'Inter',
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    height: 6,
-                                  ),
-                                  if (selectedPlace?.formattedAddress != null)
-                                    Text(
-                                      selectedPlace!.formattedAddress!,
-                                      style: TextStyle(
-                                        color: Color(0xFFC4C4C4),
-                                        fontSize: 13,
-                                        fontFamily: 'Inter',
-                                        fontWeight: FontWeight.w400,
-                                        letterSpacing: -0.32,
-                                      ),
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                ],
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: CachedNetworkImage(
+                                height: 160,
+                                fit: BoxFit.cover,
+                                width: MediaQuery.sizeOf(context).width,
+                                imageUrl:
+                                    'https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${selectedPlace!.photos[0].photoReference}&key=$googleApiKey',
+                                placeholder: (context, url) =>
+                                    Center(child: CircularProgressIndicator()),
+                                errorWidget: (context, url, error) =>
+                                    Icon(Icons.error),
                               ),
                             ),
-                            Icon(Icons.edit,
-                                color: Theme.of(context).colorScheme.primary)
+                            SizedBox(
+                              height: 24,
+                            ),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.location_on, color: Colors.white),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        selectedPlace?.name ?? "Add location",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontFamily: 'Inter',
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        height: 6,
+                                      ),
+                                      if (selectedPlace?.formattedAddress !=
+                                          null)
+                                        Text(
+                                          selectedPlace!.formattedAddress!,
+                                          style: TextStyle(
+                                            color: Color(0xFFC4C4C4),
+                                            fontSize: 13,
+                                            fontFamily: 'Inter',
+                                            fontWeight: FontWeight.w400,
+                                            letterSpacing: -0.32,
+                                          ),
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(Icons.edit,
+                                    color:
+                                        Theme.of(context).colorScheme.primary)
+                              ],
+                            ),
                           ],
                         ),
                 ),
@@ -459,46 +509,53 @@ class _CreateGatheringCircleScreenState
               // Spacer(),
               SizedBox(height: 24),
 
-              SwitchListTile(
-                value: isPublic,
-                onChanged: (val) {
-                  setState(() {
-                    isPublic = val;
-                  });
-                },
-                title: Text("Make Gathering Public",
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xffF2F2F2),
-                        fontFamily: "Inter")),
-                subtitle: Row(
-                  children: [
-                    Icon(
-                      Icons.info,
-                      size: 12,
-                    ),
-                    SizedBox(
-                      width: 7,
-                    ),
-                    Text(
-                      'Allow other people to join your gathering',
+              Container(
+                 decoration: BoxDecoration(
+                    color: Color(0xff091F1E),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                child: SwitchListTile(
+                  value: isPublic,
+                  onChanged: (val) {
+                    setState(() {
+                      isPublic = val;
+                    });
+                  },
+                  title: Text("Make Gathering Public",
                       style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                          fontFamily: "Inter"),
-                    ),
-                  ],
-                ),
-                activeColor: Color(0xFF03FFE2),
-                // tileColor: Color(0xff091F1E),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xffF2F2F2),
+                          fontFamily: "Inter")),
+                  subtitle: Row(
+                    children: [
+                      Icon(
+                        Icons.info,
+                        size: 12,
+                      ),
+                      SizedBox(
+                        width: 7,
+                      ),
+                      Text(
+                        'Allow other people to join your gathering',
+                        style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                            fontFamily: "Inter"),
+                      ),
+                    ],
+                  ),
+                  activeColor: Color(0xFF03FFE2),
+                  // tileColor: Color(0xff091F1E),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
 
               if (isPublic) ...[
-                SizedBox(height: 12),
+                SizedBox(height: 16),
                 GestureDetector(
                   onTap: () async {
                     final selected = await showModalBottomSheet<int>(

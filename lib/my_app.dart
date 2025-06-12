@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:connecto/feature/access_request/screens/access_request_screen.dart';
+import 'package:connecto/feature/auth/model/user_model.dart';
 import 'package:connecto/feature/auth/screens/login_screen.dart';
 import 'package:connecto/feature/auth/screens/login_success.dart';
 import 'package:connecto/feature/auth/screens/user_details_screen.dart';
@@ -12,18 +13,23 @@ import 'package:connecto/feature/circles/screens/create_circle_screen.dart';
 import 'package:connecto/feature/dashboard/screens/friends_details_screen.dart';
 import 'package:connecto/feature/dashboard/screens/home_screen.dart.dart';
 import 'package:connecto/feature/discover/screens/discover_screen.dart';
+import 'package:connecto/feature/discover/screens/location_details_Screen.dart';
+import 'package:connecto/feature/discover/screens/select_location_discover.dart';
 import 'package:connecto/feature/gatherings/models/gathering_model.dart';
 import 'package:connecto/feature/gatherings/screens/create_gathering_circle.dart';
 import 'package:connecto/feature/gatherings/screens/create_gathering_screen.dart';
 import 'package:connecto/feature/gatherings/screens/edit_gathering_circle.dart';
 import 'package:connecto/feature/gatherings/screens/gathering_details_screen.dart';
 import 'package:connecto/feature/gatherings/screens/gathering_list.dart';
+import 'package:connecto/feature/gatherings/screens/location_details_gathering.dart';
+import 'package:connecto/feature/gatherings/screens/select_location_gathering.dart';
 import 'package:connecto/feature/gatherings/screens/select_location_screen.dart';
 import 'package:connecto/feature/pings/screens/ping_chat_screen.dart';
 import 'package:connecto/feature/video_creation/screens/video_from_photos_screen.dart';
 import 'package:connecto/notification_handler.dart';
 import 'package:connecto/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_google_maps_webservices/places.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -117,8 +123,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           log('inside redirect....${state.fullPath}');
           log("url : ${state.uri.toString()}");
 
-        
-
           // log('user $user');
           if (user == null) return '/';
 
@@ -150,12 +154,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) {
           log('inside bond shell route ${state.fullPath}');
+
           return MainScreen(child: child);
         },
         routes: [
           GoRoute(
             path: '/bond',
-            builder: (context, state) => BondScreen(),
+            name: 'bond',
+            builder: (context, state) {
+              // final index = state.extra as int;
+              // log('=====index in gorouter====: $index');
+              return BondScreen();
+            },
             routes: [
               GoRoute(
                 path: 'setting',
@@ -261,7 +271,31 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                   parentNavigatorKey: rootNavigatorKey,
                   path: 'create-gathering-circle',
                   builder: (context, state) {
-                    return CreateGatheringCircleScreen();
+                    // // return CreateGatheringCircleScreen();
+                    // final place = state.extra as PlacesSearchResult?;
+                    // // final extra = state.extra as Map<String, dynamic>?;
+                    // final activity = state.uri.queryParameters['activity'] ??
+                    //     ''; // pass via query string
+
+                    // return CreateGatheringCircleScreen(
+                    //   place: place,
+                    //   initialActivity: activity,
+                    //   registeredUsers:
+                    //       state.extra['registeredUsers'] as List<UserModel>?,
+                    //   unregisteredUsers: extra?['unregisteredUsers']
+                    //       as List<Map<String, String>>?,
+                    // );
+
+                    final extra = state.extra as Map<String, dynamic>?;
+
+                    return CreateGatheringCircleScreen(
+                      place: extra?['place'] as PlacesSearchResult?,
+                      initialActivity: extra?['activity'] as String?,
+                      registeredUsers:
+                          extra?['registeredUsers'] as List<UserModel>?,
+                      unregisteredUsers: extra?['unregisteredUsers']
+                          as List<Map<String, String>>?,
+                    );
                   },
                 ),
                 GoRoute(
@@ -281,6 +315,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     return EditGatheringCircle(gathering: gathering);
                   },
                 ),
+                GoRoute(
+                  path: 'select-location',
+                  builder: (context, state) {
+                    final eventType = state.extra as String;
+                    return SelectLocationGatheringScreen(eventType: eventType);
+                  },
+                ),
+                GoRoute(
+                  path: 'location-details',
+                  builder: (context, state) {
+                    final data = state.extra as Map<String, dynamic>;
+                    final place = data['place'] as PlacesSearchResult;
+                    final activity = data['activity'] as String;
+                    return LocationDetailsGatheringScreen(
+                      placesSearchResult: place,
+                      activty: activity,
+                    );
+                  },
+                ),
               ]),
           GoRoute(
             path: '/discover',
@@ -291,6 +344,27 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => ProfileScreen(),
           ),
         ],
+      ),
+
+      GoRoute(
+        path: '/select-location',
+        builder: (context, state) {
+          final eventType = state.extra as String;
+          return SelectLocationScreen(eventType: eventType);
+        },
+      ),
+
+      GoRoute(
+        path: '/location-details',
+        builder: (context, state) {
+          final data = state.extra as Map<String, dynamic>;
+          final place = data['place'] as PlacesSearchResult;
+          final activity = data['activity'] as String;
+          return LocationDetailsScreen(
+            placesSearchResult: place,
+            activty: activity,
+          );
+        },
       ),
 
       GoRoute(

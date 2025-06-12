@@ -20,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:loading_indicator/loading_indicator.dart';
+import 'package:vibration/vibration.dart';
 
 final userProvider = FutureProvider.family<UserModel, String>((ref, uid) async {
   final doc =
@@ -61,6 +62,15 @@ class PingChatScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ScrollController _scrollController = ScrollController();
 
+    void _playHapticPattern(List<int> pattern) async {
+      bool canVibrate = await Vibration.hasVibrator();
+      if (canVibrate) {
+        Vibration.vibrate(pattern: pattern);
+      } else {
+        log("Device does not support haptic feedback.");
+      }
+    }
+
     void _scrollToBottom() {
       Future.delayed(Duration(milliseconds: 10), () {
         if (_scrollController.hasClients) {
@@ -98,7 +108,7 @@ class PingChatScreen extends ConsumerWidget {
           'vibrationPattern': vibrationPattern,
           'chatId': chatId,
           'friendId': friendId,
-          'userId' : user!.id,
+          'userId': user!.id,
           'friendName': user.fullName,
         });
 
@@ -440,6 +450,7 @@ class PingChatScreen extends ConsumerWidget {
                                       ),
                                     ),
                                   Container(
+                                    // height: 46,
                                     // width: MediaQuery.sizeOf(context).width / 2,
                                     constraints: BoxConstraints(
                                       maxWidth:
@@ -450,28 +461,43 @@ class PingChatScreen extends ConsumerWidget {
                                     ),
                                     margin: EdgeInsets.symmetric(vertical: 4),
                                     padding: EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 12),
+                                        horizontal: 12, vertical: 9).copyWith(right: 10),
                                     decoration: BoxDecoration(
                                       color: message.senderId == friendId
                                           ? Color(0xff091F1E)
                                           : Color(0xff0C6353),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Text(
-                                          message.text,
-                                          style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 16),
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              message.text,
+                                              style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 16),
+                                            ),
+                                            if (message
+                                                .pingPattern.isNotEmpty) ...[
+                                              SizedBox(height: 6),
+                                              PingVisualizerChat(
+                                                  pattern: message.pingPattern),
+                                            ]
+                                          ],
                                         ),
-                                        if (message.pingPattern.isNotEmpty) ...[
-                                          SizedBox(height: 6),
-                                          PingVisualizerChat(
-                                              pattern: message.pingPattern),
-                                        ]
+                                        Spacer(),
+                                        IconButton(
+                                          padding: EdgeInsets.all(0),
+                                          icon: Icon(Icons.play_arrow,
+                                              color: Colors.tealAccent),
+                                          onPressed: () => _playHapticPattern(
+                                              message
+                                                  .pingPattern), // 🔹 Play Vibration
+                                        ),
                                       ],
                                     ),
                                   ),

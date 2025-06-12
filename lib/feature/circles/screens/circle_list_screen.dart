@@ -9,18 +9,62 @@ import 'package:loading_indicator/loading_indicator.dart';
 
 //fetching circles
 
+// final circlesProvider = StreamProvider.autoDispose<List<CircleModel>>((ref) {
+//   final currentUser = FirebaseAuth.instance.currentUser;
+//   if (currentUser == null) return Stream.value([]);
+
+//   return FirebaseFirestore.instance
+//       .collection('circles')
+//       .where('registeredUsers', arrayContains: currentUser.uid)
+//       .snapshots()
+//       .asyncMap((snapshot) async {
+//     // log('===snpashot : ${snapshot.docs}');
+//     return Future.wait(
+//         snapshot.docs.map((doc) => CircleModel.fromFirestore(doc)));
+//   });
+// });
+
 final circlesProvider = StreamProvider.autoDispose<List<CircleModel>>((ref) {
   final currentUser = FirebaseAuth.instance.currentUser;
   if (currentUser == null) return Stream.value([]);
 
   return FirebaseFirestore.instance
-      .collection('circles')
-      .where('registeredUsers', arrayContains: currentUser.uid)
+      .collection('groupChats')
+      .orderBy('lastMessage.timestamp', descending: true)
       .snapshots()
-      .asyncMap((snapshot) async {
-    // log('===snpashot : ${snapshot.docs}');
-    return Future.wait(
-        snapshot.docs.map((doc) => CircleModel.fromFirestore(doc)));
+      .asyncMap((chatSnapshot) async {
+    final circleDocs = await Future.wait(
+      chatSnapshot.docs.map((chatDoc) async {
+        final circleId = chatDoc['circleId'];
+        final circleSnap = await FirebaseFirestore.instance
+            .collection('circles')
+            .doc(circleId)
+            .get();
+
+        if (!circleSnap.exists) return null;
+
+        final circle = await CircleModel.fromFirestore(circleSnap);
+        return circle;
+      }),
+    );
+
+    return circleDocs.whereType<CircleModel>().toList();
+  });
+});
+
+final groupChatFlagsProvider = StreamProvider<Map<String, bool>>((ref) {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return Stream.value({});
+
+  return FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .collection('groupChatFlags')
+      .snapshots()
+      .map((snapshot) {
+    return {
+      for (var doc in snapshot.docs) doc.id: doc['hasNewMessage'] == true
+    };
   });
 });
 
@@ -30,6 +74,7 @@ class CircleListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final circlesAsync = ref.watch(circlesProvider);
+    final flagsAsync = ref.watch(groupChatFlagsProvider);
     // Future.microtask(() {
     //   if (context.mounted) {
     //     ref.read(circleNotifierProvider.notifier).resetState();
@@ -53,12 +98,15 @@ class CircleListScreen extends ConsumerWidget {
           circlesAsync.when(
             data: (circles) {
               // log('===circle data avaialable ${circles}');
+
               return ListView(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
                 children: [
                   ...circles.map((circle) {
-                    return buildCircleTile(circle, context);
+                    final hasPendingMessage = flagsAsync.value?[circle.id] ==
+                        true; // circle.id is doc.id
+                    return buildCircleTile(circle, context,hasPendingMessage);
                   }),
                 ],
               );

@@ -591,6 +591,56 @@ exports.sendPingNotification = functions.https.onCall(async (data, context) => {
   }
 });
 
+// exports.sendGatheringNotification = functions.https.onCall(async (data, context) => {
+//   const gatheringId = data.gatheringId;
+//   if (!gatheringId) {
+//     throw new functions.https.HttpsError("invalid-argument", "Gathering ID is required.");
+//   }
+
+//   const gatheringDoc = await admin.firestore().collection("gatherings").doc(gatheringId).get();
+//   if (!gatheringDoc.exists) {
+//     throw new functions.https.HttpsError("not-found", "Gathering not found.");
+//   }
+
+//   const gathering = gatheringDoc.data();
+//   const invitees = gathering.invitees ?? {};
+//   const fcmTokens = [];
+
+//   for (const [uid, info] of Object.entries(invitees)) {
+//     const userDoc = await admin.firestore().collection("users").doc(uid).get();
+//     const token = userDoc.data()?.fcmToken;
+//     if (token) fcmTokens.push(token);
+//   }
+
+//   const message = {
+//     notification: {
+//       title: `You're invited to ${gathering.name}`,
+//       body: `Event at ${gathering.location?.name ?? 'a location'} on ${new Date(gathering.dateTime._seconds * 1000).toLocaleString()}`
+//     },
+//     data: {
+//       type: "gathering",
+//       gatheringId: gatheringId,
+//     },
+//     tokens: fcmTokens
+//   };
+
+//   const responses = await Promise.all(
+//     fcmTokens.map(token =>
+//       admin.messaging().send({
+//         notification: message.notification,
+//         data: message.data,
+//         token: token,
+//       }).then(() => ({ token, success: true }))
+//         .catch(err => ({ token, success: false, error: err.message }))
+//     )
+//   );
+
+//   console.log("FCM Send Results:", responses);
+
+//   return { success: true, sent: fcmTokens.length };
+// });
+
+// Updated Cloud Function for sending gathering notifications
 exports.sendGatheringNotification = functions.https.onCall(async (data, context) => {
   const gatheringId = data.gatheringId;
   if (!gatheringId) {
@@ -603,41 +653,172 @@ exports.sendGatheringNotification = functions.https.onCall(async (data, context)
   }
 
   const gathering = gatheringDoc.data();
+  const hostId = gathering.hostId;
   const invitees = gathering.invitees ?? {};
   const fcmTokens = [];
 
+  // Format gathering date/time using fixed locale + timezone if needed
+  const dateTimeMillis = gathering.dateTime?._seconds
+    ? gathering.dateTime._seconds * 1000
+    : Date.now();
+  const formattedDate = new Date(dateTimeMillis).toLocaleString("en-GB", {
+    timeZone: "Asia/Dubai",
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
+  // Handle normal invitees
   for (const [uid, info] of Object.entries(invitees)) {
     const userDoc = await admin.firestore().collection("users").doc(uid).get();
     const token = userDoc.data()?.fcmToken;
-    if (token) fcmTokens.push(token);
+    if (!token) continue;
+
+    let title, body;
+    if (uid === hostId) {
+      title = `You created a gathering: ${gathering.name}`;
+      body = `Scheduled at ${gathering.location?.name ?? 'a location'} on ${formattedDate}`;
+    } else {
+      title = `You're invited to ${gathering.name}`;
+      body = `Event at ${gathering.location?.name ?? 'a location'} on ${formattedDate}`;
+    }
+
+    fcmTokens.push({ token, title, body });
   }
 
-  const message = {
-    notification: {
-      title: `You're invited to ${gathering.name}`,
-      body: `Event at ${gathering.location?.name ?? 'a location'} on ${new Date(gathering.dateTime._seconds * 1000).toLocaleString()}`
-    },
-    data: {
-      type: "gathering",
-      gatheringId: gatheringId,
-    },
-    tokens: fcmTokens
-  };
+  // If gathering is public, notify other users
+  if (gathering.isPublic) {
+    const usersSnapshot = await admin.firestore().collection("users").get();
+    for (const doc of usersSnapshot.docs) {
+      const user = doc.data();
+      const uid = doc.id;
+      if (fcmTokens.find(t => t.token === user.fcmToken)) continue; // Skip already added tokens
+      if (uid === hostId) continue; // Skip host again
 
-  const responses = await Promise.all(
-    fcmTokens.map(token =>
+      fcmTokens.push({
+        token: user.fcmToken,
+        title: `New public event: ${gathering.name}`,
+        body: `Happening at ${gathering.location?.name ?? 'a location'} on ${formattedDate}`,
+      });
+    }
+  }
+
+  const results = await Promise.all(
+    fcmTokens.map(({ token, title, body }) =>
       admin.messaging().send({
-        notification: message.notification,
-        data: message.data,
-        token: token,
+        token,
+        notification: { title, body },
+        data: {
+          type: "gathering",
+          gatheringId: gatheringId,
+        },
       }).then(() => ({ token, success: true }))
-        .catch(err => ({ token, success: false, error: err.message }))
+        .catch(error => ({ token, success: false, error: error.message }))
     )
   );
 
-  console.log("FCM Send Results:", responses);
+  console.log("FCM Send Results:", results);
 
-  return { success: true, sent: fcmTokens.length };
+  return { success: true, sent: results.length, results };
 });
+
+
+exports.sendGroupPingNotification = functions.https.onCall(async (data, context) => {
+  const { circleId, messageText, senderId, senderName, vibrationPattern } = data;
+
+  if (!circleId || !messageText || !senderId || !senderName || !vibrationPattern) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Missing one or more required fields."
+    );
+  }
+
+  try {
+    const firestore = admin.firestore();
+
+    // 🔹 Fetch the circle document
+    const circleDoc = await firestore.collection("circles").doc(circleId).get();
+    if (!circleDoc.exists) {
+      throw new functions.https.HttpsError("not-found", "Circle not found.");
+    }
+
+    const circleData = circleDoc.data();
+    const circleName = circleData.circleName || "your circle";
+    const registeredUsers = circleData.registeredUsers || [];
+
+    const fcmTokens = [];
+
+    for (const userId of registeredUsers) {
+      if (userId === senderId) continue; // 🔁 Don't notify the sender
+
+      const userDoc = await firestore.collection("users").doc(userId).get();
+      const fcmToken = userDoc.data()?.fcmToken;
+
+      if (fcmToken) {
+        fcmTokens.push({
+          token: fcmToken,
+          userId,
+        });
+      }
+    }
+
+    const notification = {
+      title: `${senderName} pinged in ${circleName}`,
+      body: messageText,
+    };
+
+    const dataPayload = {
+      type: "groupPing",
+      circleId,
+      messageText,
+      vibrationPattern, // 🟢 Include ping pattern
+      senderId,
+      senderName,
+    };
+
+    // 🔄 Send FCM to each recipient
+    const results = await Promise.all(
+      fcmTokens.map(({ token }) =>
+        admin
+          .messaging()
+          .send({
+            token,
+            notification,
+            data: dataPayload,
+            android: {
+              priority: "high",
+            },
+            apns: {
+              headers: {
+                "apns-priority": "10",
+              },
+              payload: {
+                aps: {
+                  alert: {
+                    title: notification.title,
+                    body: notification.body,
+                  },
+                  sound: "default",
+                },
+              },
+            },
+          })
+          .then(() => ({ token, success: true }))
+          .catch((err) => ({ token, success: false, error: err.message }))
+      )
+    );
+
+    console.log("✅ Group ping notification results:", results);
+
+    return { success: true, sent: fcmTokens.length };
+  } catch (error) {
+    console.error("❌ Error sending group ping:", error);
+    throw new functions.https.HttpsError("internal", error.message);
+  }
+});
+
+
 
 

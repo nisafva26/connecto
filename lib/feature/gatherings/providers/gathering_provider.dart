@@ -150,6 +150,7 @@ class CreateGatheringNotifier extends StateNotifier<CreateGatheringState> {
         "nonRegisteredInvitees": nonRegisteredInvitees,
         "isPublic": isPublic,
         "maxPublicParticipants": maxPublicParticipants,
+        "publicJoinCount": 0,
         "joinedPublicUsers": {}, // initially empty
         "photoRef": photoRef
       });

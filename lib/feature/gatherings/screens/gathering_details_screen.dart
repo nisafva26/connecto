@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connecto/common_widgets/continue_button.dart';
 import 'package:connecto/feature/circles/controller/circle_notifier.dart';
@@ -11,6 +12,7 @@ import 'package:connecto/feature/circles/models/circle_state.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
 import 'package:connecto/feature/gatherings/models/gathering_model.dart';
 import 'package:connecto/feature/gatherings/providers/public_gathering_provider.dart';
+import 'package:connecto/feature/gatherings/screens/select_location_screen.dart';
 import 'package:connecto/feature/gatherings/services/location_manager.dart';
 import 'package:connecto/feature/gatherings/services/mapbox_eta.dart';
 import 'package:connecto/feature/gatherings/widgets/custom_marker.dart';
@@ -25,6 +27,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -527,6 +530,10 @@ class _GatheringDetailsScreenState
           final publicPeopleEntries =
               gathering.joinedPublicUsers.entries.toList();
 
+          final pendingRequests = gathering.joinedPublicUsers.entries
+              .where((entry) => entry.value.status == 'pending')
+              .toList();
+
           // log('isPublic ? ${gathering.isPublic}');
           return Scaffold(
             backgroundColor: Color(0xff001311),
@@ -546,8 +553,7 @@ class _GatheringDetailsScreenState
                     width: MediaQuery.of(context).size.width,
                     child: map.MapWidget(
                         key: ValueKey("map-${gathering.id}"),
-                   
-                        styleUri: map.MapboxStyles.DARK,
+                        // styleUri: map.MapboxStyles.LIGHT,
                         cameraOptions: map.CameraOptions(
                           center: map.Point(
                             coordinates: map.Position(
@@ -616,6 +622,7 @@ class _GatheringDetailsScreenState
                                   // physics: NeverScrollableScrollPhysics(),
                                   children: [
                                     // SizedBox(height: 50),
+
                                     Center(
                                       child: Opacity(
                                         opacity: 0.30,
@@ -635,25 +642,198 @@ class _GatheringDetailsScreenState
                                     SizedBox(
                                       height: 30,
                                     ),
-                                    Text(
-                                      "Description",
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontFamily: 'Inter',
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    SizedBox(height: 11),
+
+                                    // Text(
+                                    //   "Description",
+                                    //   style: TextStyle(
+                                    //     color: Colors.white,
+                                    //     fontSize: 16,
+                                    //     fontFamily: 'Inter',
+                                    //     fontWeight: FontWeight.w500,
+                                    //   ),
+                                    // ),
+                                    // SizedBox(height: 11),
                                     Text(
                                       gathering.name,
                                       style: TextStyle(
-                                        color: Color(0xff99a1a0),
-                                        fontSize: 16,
-                                        fontFamily: 'SFPRO',
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontFamily: 'Inter',
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      height: 24,
+                                    ),
+
+                                    if (isHost &&
+                                        pendingRequests.isNotEmpty) ...[
+                                      Padding(
+                                        padding:
+                                            EdgeInsets.symmetric(vertical: 8)
+                                                .copyWith(bottom: 0),
+                                        child: Text(
+                                          "Public Join Requests",
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        height: 8,
+                                      ),
+                                      ...pendingRequests.map((entry) {
+                                        final userId = entry.key;
+                                        final user = entry.value;
+
+                                        return Card(
+                                          color: const Color(0xFF0F2A29),
+                                          margin: const EdgeInsets.symmetric(
+                                              vertical: 6),
+                                          child: Column(
+                                            children: [
+                                              ListTile(
+                                                title: Text(user.name,
+                                                    style: const TextStyle(
+                                                        color: Colors.white)),
+                                                subtitle: Text(user.phoneNumber,
+                                                    style: const TextStyle(
+                                                        color: Colors.grey)),
+                                              ),
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                            horizontal: 16,
+                                                            vertical: 16)
+                                                        .copyWith(top: 0),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Expanded(
+                                                      child: ElevatedButton(
+                                                        onPressed: () async {
+                                                          await FirebaseFirestore
+                                                              .instance
+                                                              .collection(
+                                                                  'gatherings')
+                                                              .doc(gathering.id)
+                                                              .update({
+                                                            'joinedPublicUsers.$userId.status':
+                                                                'accepted',
+                                                            'publicJoinCount':
+                                                                FieldValue
+                                                                    .increment(
+                                                                        1),
+                                                          });
+
+                                                          if (context.mounted) {
+                                                            Fluttertoast.showToast(
+                                                                toastLength: Toast
+                                                                    .LENGTH_LONG,
+                                                                msg:
+                                                                    "User request approved!",
+                                                                textColor:
+                                                                    Colors
+                                                                        .black,
+                                                                backgroundColor: Theme.of(
+                                                                        context)
+                                                                    .colorScheme
+                                                                    .primary);
+                                                          }
+                                                        },
+                                                        style: ElevatedButton
+                                                            .styleFrom(
+                                                          backgroundColor:
+                                                              const Color(
+                                                                  0xFF03FFE2),
+                                                          foregroundColor:
+                                                              Colors.black,
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                                  horizontal:
+                                                                      14,
+                                                                  vertical: 8),
+                                                          textStyle:
+                                                              const TextStyle(
+                                                                  fontSize: 14),
+                                                        ),
+                                                        child: const Text(
+                                                            'Approve'),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: ElevatedButton(
+                                                        onPressed: () async {
+                                                          await FirebaseFirestore
+                                                              .instance
+                                                              .collection(
+                                                                  'gatherings')
+                                                              .doc(gathering.id)
+                                                              .update({
+                                                            'joinedPublicUsers.$userId.status':
+                                                                'rejected',
+                                                          });
+
+                                                          if (context.mounted) {
+                                                            Fluttertoast.showToast(
+                                                                toastLength: Toast
+                                                                    .LENGTH_LONG,
+                                                                msg:
+                                                                    "User request rejected !",
+                                                                textColor:
+                                                                    Colors
+                                                                        .black,
+                                                                backgroundColor: Theme.of(
+                                                                        context)
+                                                                    .colorScheme
+                                                                    .primary);
+                                                          }
+                                                        },
+                                                        style: ElevatedButton
+                                                            .styleFrom(
+                                                          backgroundColor:
+                                                              Colors.redAccent,
+                                                          foregroundColor:
+                                                              Colors.white,
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                                  horizontal:
+                                                                      14,
+                                                                  vertical: 8),
+                                                          textStyle:
+                                                              const TextStyle(
+                                                                  fontSize: 14),
+                                                        ),
+                                                        child: const Text(
+                                                            'Reject'),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
+                                      SizedBox(height: 24),
+                                    ],
+                                    Text(
+                                      'When?',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontFamily: 'Inter',
                                         fontWeight: FontWeight.w400,
                                       ),
                                     ),
+                                    SizedBox(height: 10),
+                                    buildTimeContainer(gathering),
                                     SizedBox(height: 24),
                                     Text("Location",
                                         style: TextStyle(
@@ -667,79 +847,191 @@ class _GatheringDetailsScreenState
                                         color: Color(0xff091F1E),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
-                                      child: Row(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Icon(Icons.location_on,
-                                              color: Colors.white),
-                                          SizedBox(width: 8),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  gathering.location.name,
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 18,
-                                                    fontFamily: 'Inter',
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                                SizedBox(
-                                                  height: 6,
-                                                ),
-                                                Text(
-                                                  gathering.location.address,
-                                                  maxLines: 3,
-                                                  style: TextStyle(
-                                                    color:
-                                                        const Color(0xFFC4C4C4),
-                                                    fontSize: 13,
-                                                    fontFamily: 'Inter',
-                                                    fontWeight: FontWeight.w400,
-                                                    letterSpacing: -0.32,
-                                                  ),
-                                                ),
-                                              ],
+                                          ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            child: CachedNetworkImage(
+                                              height: 160,
+                                              fit: BoxFit.cover,
+                                              width: MediaQuery.sizeOf(context)
+                                                  .width,
+                                              imageUrl:
+                                                  'https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${gathering.photoRef}&key=$googleApiKey',
+                                              placeholder: (context, url) => Center(
+                                                  child:
+                                                      CircularProgressIndicator()),
+                                              errorWidget:
+                                                  (context, url, error) =>
+                                                      Icon(Icons.error),
                                             ),
                                           ),
-                                          TextButton(
-                                            onPressed: () async {
-                                              openMapsDirections(
-                                                  gathering.location.lat,
-                                                  gathering.location.lng);
-                                            },
-                                            child: Text("Directions →",
-                                                style: TextStyle(
-                                                  color:
-                                                      const Color(0xFF03FFE2),
-                                                  fontSize: 14,
-                                                  fontFamily: 'Inter',
-                                                  fontWeight: FontWeight.w600,
-                                                  height: 1.43,
-                                                )),
+                                          SizedBox(
+                                            height: 24,
+                                          ),
+                                          Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Icon(
+                                                Icons.location_on_outlined,
+                                                color: Colors.grey,
+                                                size: 25,
+                                              ),
+                                              SizedBox(width: 6),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      gathering.location.name,
+                                                      maxLines: 2,
+                                                      style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 18,
+                                                        fontFamily: 'Inter',
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                    SizedBox(
+                                                      height: 6,
+                                                    ),
+                                                    Text(
+                                                      gathering
+                                                          .location.address,
+                                                      maxLines: 3,
+                                                      style: TextStyle(
+                                                        color: const Color(
+                                                            0xFFC4C4C4),
+                                                        fontSize: 13,
+                                                        fontFamily: 'Inter',
+                                                        fontWeight:
+                                                            FontWeight.w400,
+                                                        letterSpacing: -0.32,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          SizedBox(
+                                            height: 24,
+                                          ),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: ElevatedButton(
+                                                  onPressed: () {
+                                                    // Handle Details press
+                                                  },
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor: Color(
+                                                        0xFF001311), // dark background
+                                                    foregroundColor:
+                                                        Colors.white,
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              12),
+                                                    ),
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                            vertical: 14),
+                                                  ),
+                                                  child: Text(
+                                                    'Details',
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                      fontFamily: 'Inter',
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      height: 1.43,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              SizedBox(width: 12),
+                                              Expanded(
+                                                child: ElevatedButton(
+                                                  onPressed: () {
+                                                    // Handle Directions press
+
+                                                    openMapsDirections(
+                                                        gathering.location.lat,
+                                                        gathering.location.lng);
+                                                  },
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor:
+                                                        Colors.white,
+                                                    foregroundColor:
+                                                        Colors.black,
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              12),
+                                                    ),
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                            vertical: 14),
+                                                  ),
+                                                  child: Text(
+                                                    'Directions',
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                      fontFamily: 'Inter',
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      height: 1.43,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           )
                                         ],
                                       ),
                                     ),
                                     if (myStatus == 'accepted') ...[
                                       SizedBox(height: 24),
-                                      SwitchListTile(
-                                        value: isSharing,
-                                        onChanged: (value) {
-                                          setState(() => isSharing = value);
-                                          toggleLocationSharing(
-                                            gatheringId: widget.gatheringId,
-                                            userId: FirebaseAuth
-                                                .instance.currentUser!.uid,
-                                            enable: value,
-                                          );
-                                        },
-                                        title: Text("Share Live Location",
-                                            style:
-                                                TextStyle(color: Colors.white)),
-                                        activeColor: Colors.greenAccent,
+                                      Container(
+                                        decoration: ShapeDecoration(
+                                          color: const Color(0xFF091F1E),
+                                          shape: RoundedRectangleBorder(
+                                            side: BorderSide(
+                                              width: 1,
+                                              color: const Color(0xFF082523),
+                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                        ),
+                                        child: SwitchListTile(
+                                          contentPadding: EdgeInsets.only(left: 16,right: 16,top: 8,bottom: 8),
+                                          value: isSharing,
+                                          onChanged: (value) {
+                                            setState(() => isSharing = value);
+                                            toggleLocationSharing(
+                                              gatheringId: widget.gatheringId,
+                                              userId: FirebaseAuth
+                                                  .instance.currentUser!.uid,
+                                              enable: value,
+                                            );
+                                          },
+                                          title: Text("Share Live Location",
+                                              style: TextStyle(
+                                                  color: Colors.white)),
+                                          activeColor: Colors.greenAccent,
+                                        ),
                                       ),
                                     ],
 
@@ -755,12 +1047,12 @@ class _GatheringDetailsScreenState
                                     ),
                                     SizedBox(height: 24),
                                     GatheringInviteeLsitWidget(
-                                        inviteeEntries: inviteeEntries,
-                                        inviteeETAs: inviteeETAs,
-                                        travelStatuses: travelStatuses,
-                                        currentUserId: currentUserId,
-                                        gathering: gathering,
-                                        ),
+                                      inviteeEntries: inviteeEntries,
+                                      inviteeETAs: inviteeETAs,
+                                      travelStatuses: travelStatuses,
+                                      currentUserId: currentUserId,
+                                      gathering: gathering,
+                                    ),
                                     if (nonRegisteredEntries.isNotEmpty) ...[
                                       SizedBox(
                                         height: 24,
@@ -837,7 +1129,7 @@ class _GatheringDetailsScreenState
                                           ),
                                           Spacer(),
                                           Text(
-                                            "${gathering.maxPublicParticipants - gathering.joinedPublicUsers.length} spots left",
+                                            "${gathering.publicJoinCount}/${gathering.maxPublicParticipants} spots left",
                                             style: TextStyle(
                                               color: Colors.white,
                                               fontSize: 14,
@@ -886,7 +1178,15 @@ class _GatheringDetailsScreenState
                                                     ),
                                                   ),
                                                   Text(
-                                                    'Joined',
+                                                    publicPeopleEntries[index]
+                                                                .value
+                                                                .status ==
+                                                            'pending'
+                                                        ? 'Host approval pending'
+                                                        : publicPeopleEntries[
+                                                                index]
+                                                            .value
+                                                            .status,
                                                     style: TextStyle(
                                                       color: const Color(
                                                           0xFF58616A),
@@ -903,6 +1203,7 @@ class _GatheringDetailsScreenState
                                         },
                                       )
                                     ],
+
                                     SizedBox(
                                       height: 53,
                                     ),
@@ -936,7 +1237,9 @@ class _GatheringDetailsScreenState
             ),
             bottomNavigationBar: Builder(
               builder: (context) {
-                if (!isHost && myStatus == 'pending') {
+                if (!isHost &&
+                    myStatus == 'pending' &&
+                    gathering.isPublic == false) {
                   // 🛎️ Case 1: Invited user (pending)
                   return Container(
                     decoration: BoxDecoration(
@@ -946,7 +1249,7 @@ class _GatheringDetailsScreenState
                             topRight: Radius.circular(16))),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 16),
+                          horizontal: 20, vertical: 16).copyWith(bottom: 30),
                       child: Row(
                         children: [
                           Expanded(
@@ -989,7 +1292,9 @@ class _GatheringDetailsScreenState
                   );
                 } else if (!isHost &&
                     myStatus == 'none' &&
-                    gathering.isPublic) {
+                    gathering.isPublic &&
+                    (gathering.publicJoinCount) <
+                        (gathering.maxPublicParticipants)) {
                   final joinState = ref.watch(joinPublicGatheringProvider);
                   log('join gathering state : $joinState');
 
@@ -1051,6 +1356,70 @@ class _GatheringDetailsScreenState
                       ),
                     ),
                   );
+                } else if (!isHost &&
+                    myStatus == 'none' &&
+                    gathering.isPublic &&
+                    (gathering.publicJoinCount) >=
+                        (gathering.maxPublicParticipants)) {
+                  final joinState = ref.watch(joinPublicGatheringProvider);
+                  log('No spots available');
+
+                  return Container(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20)
+                        .copyWith(bottom: 30),
+                    decoration: BoxDecoration(
+                      color: Color(0xFF091F1E),
+                      borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16)),
+                    ),
+                    child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {},
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent,
+                            foregroundColor: Colors.black,
+                            disabledBackgroundColor:
+                                Colors.grey, // optional for disabled state
+                          ),
+                          child: Text("No more public slots available",
+                              style: TextStyle(color: Colors.white)),
+                        )),
+                  );
+                } else if (!isHost &&
+                    myStatus == 'pending' &&
+                    gathering.isPublic) {
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 20)
+                            .copyWith(bottom: 30),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF091F1E),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                      ),
+                    ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: null, // Disabled
+                        icon: const Icon(Icons.hourglass_top_rounded,
+                            color: Colors.black),
+                        label: const Text(
+                          "Request Sent. Awaiting Approval",
+                          style: TextStyle(color: Colors.black),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              Theme.of(context).colorScheme.primary,
+                          disabledBackgroundColor:
+                              Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  );
                 } else {
                   // 🔔 Case 3: Host or already accepted/joined → No bottom bar
                   return SizedBox.shrink();
@@ -1059,6 +1428,83 @@ class _GatheringDetailsScreenState
             ),
           );
         });
+  }
+
+  Container buildTimeContainer(GatheringModel gathering) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: ShapeDecoration(
+        color: const Color(0xFF091F1E),
+        shape: RoundedRectangleBorder(
+          side: BorderSide(
+            width: 1,
+            color: const Color(0xFF082523),
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        spacing: 6,
+        children: [
+          Expanded(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 8,
+              children: [
+                Opacity(
+                  opacity: 0.60,
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(),
+                    child: Icon(
+                      Icons.access_time,
+                    ),
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 6,
+                  children: [
+                    Text(
+                      DateFormat('dd MMM yyyy').format(gathering.dateTime),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Opacity(
+                      opacity: 0.60,
+                      child: Text(
+                        DateFormat('h:mm a').format(gathering.dateTime),
+                        style: TextStyle(
+                          color: const Color(0xFFC4C4C4),
+                          fontSize: 13,
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: -0.32,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   PreferredSize buildGatheringDetailsAppBAr(
@@ -1248,3 +1694,22 @@ String formatDuration(Duration diff) {
     return '${minutes}m';
   }
 }
+
+
+
+  // TextButton(
+                                          //   onPressed: () async {
+                                          //     openMapsDirections(
+                                          //         gathering.location.lat,
+                                          //         gathering.location.lng);
+                                          //   },
+                                          //   child: Text("Directions →",
+                                          //       style: TextStyle(
+                                          //         color:
+                                          //             const Color(0xFF03FFE2),
+                                          //         fontSize: 14,
+                                          //         fontFamily: 'Inter',
+                                          //         fontWeight: FontWeight.w600,
+                                          //         height: 1.43,
+                                          //       )),
+                                          // )

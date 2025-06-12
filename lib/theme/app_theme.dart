@@ -11,6 +11,7 @@ class AppTheme {
       colorScheme: ColorScheme.dark(
         primary: Color(0xFF03FFE2),
         secondary: Color(0xFF00F0C2),
+        tertiary: Color(0xff091F1E)
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

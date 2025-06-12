@@ -76,6 +76,8 @@ final chatFlagsProvider =
 });
 
 class BondScreen extends ConsumerStatefulWidget {
+  final int initialTabIndex;
+  const BondScreen({super.key, this.initialTabIndex = 0});
   @override
   _BondScreenState createState() => _BondScreenState();
 }
@@ -86,6 +88,7 @@ class _BondScreenState extends ConsumerState<BondScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedTabIndex = widget.initialTabIndex;
     _checkPendingGatheringsIfNeeded();
   }
 
@@ -163,6 +166,7 @@ class _BondScreenState extends ConsumerState<BondScreen> {
   Widget build(BuildContext context) {
     final friendsList = ref.watch(friendsProvider);
     ref.watch(currentUserProvider);
+    log('passed initial tab index : ${widget.initialTabIndex}');
 
     final flags = ref.watch(chatFlagsProvider).value ?? {};
 

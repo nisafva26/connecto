@@ -42,7 +42,7 @@ class JoinPublicGatheringNotifier extends StateNotifier<JoinPublicGatheringState
           'name': userFullName,
           'phoneNumber': userPhoneNumber,
           'sharing': true,
-          'status': 'accepted',
+          'status': 'pending',
         }
       });
 
@@ -52,7 +52,7 @@ class JoinPublicGatheringNotifier extends StateNotifier<JoinPublicGatheringState
         'name': userFullName,
         'phoneNumber': userPhoneNumber,
         'sharing': true,
-        'status': 'accepted',
+        'status': 'pending',
       });
 
       // 3. Update user doc

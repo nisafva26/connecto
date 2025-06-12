@@ -107,6 +107,7 @@ class GatheringModel {
   final bool isPublic;
   final Map<dynamic, InviteeModel> joinedPublicUsers;
   final int maxPublicParticipants;
+  final int publicJoinCount;
   final String? photoRef;
 
   GatheringModel(
@@ -124,6 +125,7 @@ class GatheringModel {
       required this.isPublic,
       required this.joinedPublicUsers,
       required this.maxPublicParticipants,
+      required this.publicJoinCount,
       required this.photoRef});
 
   factory GatheringModel.fromDoc(DocumentSnapshot doc) {
@@ -156,6 +158,7 @@ class GatheringModel {
           (key, value) => MapEntry(key, InviteeModel.fromMap(value, key)),
         ),
         maxPublicParticipants: data['maxPublicParticipants'] ?? 0,
+        publicJoinCount: data['publicJoinCount'] ?? 0,
         photoRef: data['photoRef'] ?? '');
   }
 
@@ -193,6 +196,7 @@ class GatheringModel {
         isPublic: false,
         joinedPublicUsers: joinedPublicGatheringInvitees,
         maxPublicParticipants: map['maxPublicParticipants'] ?? 0,
+        publicJoinCount: map['publicJoinCount'] ?? 0,
         photoRef: map['photoRef'] ?? '');
   }
 }

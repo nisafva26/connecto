@@ -47,6 +47,8 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentPath = GoRouter.of(context).state.matchedLocation;
+    _selectedIndex = _getIndexFromPath(currentPath); // ✅ sync with path
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
@@ -63,20 +65,21 @@ class _MainScreenState extends State<MainScreen> {
             _selectedIndex = index;
           });
           // Navigate based on the index
-          // switch (index) {
-          //   case 0:
-          //     context.go('/main/bond');
-          //     break;
-          //   case 1:
-          //     context.go('/main/gathering');
-          //     break;
-          //   case 2:
-          //     context.go('/main/rank');
-          //     break;
-          //   case 3:
-          //     context.go('/main/profile');
-          //     break;
-          // }
+          // ✅ Navigate via GoRouter
+          switch (index) {
+            case 0:
+              context.go('/discover');
+              break;
+            case 1:
+              context.go('/gathering');
+              break;
+            case 2:
+              context.go('/bond');
+              break;
+            case 3:
+              context.go('/profile');
+              break;
+          }
         },
         items: const [
           BottomNavigationBarItem(

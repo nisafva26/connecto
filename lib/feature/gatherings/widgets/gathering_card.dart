@@ -42,7 +42,7 @@ class GatheringCard extends StatelessWidget {
         elevation: 0,
         child: InkWell(
           onTap: () {
-            context.go('/gathering/gathering-details/${gathering.id}',
+            context.push('/gathering/gathering-details/${gathering.id}',
                 extra: gathering);
           },
           child: Container(
@@ -65,21 +65,20 @@ class GatheringCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       )
-                    : 
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CachedNetworkImage(
                           height: 160,
                           fit: BoxFit.cover,
                           width: MediaQuery.sizeOf(context).width,
-                          
                           imageUrl:
                               'https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${gathering.photoRef}&key=$googleApiKey',
                           placeholder: (context, url) =>
                               Center(child: CircularProgressIndicator()),
-                          errorWidget: (context, url, error) => Icon(Icons.error),
+                          errorWidget: (context, url, error) =>
+                              Icon(Icons.error),
                         ),
-                    ),
+                      ),
                 const SizedBox(height: 20),
 
                 // Title

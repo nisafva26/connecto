@@ -55,6 +55,15 @@ class _PingListModalState extends State<PingListModal> {
     }
   }
 
+  void _playVibration(List<int> pattern) async {
+    bool canVibrate = await Vibration.hasVibrator();
+    if (canVibrate) {
+      Vibration.vibrate(pattern: pattern);
+    } else {
+      log("Device does not support haptic feedback.");
+    }
+  }
+
   void _showCreatePingModal() async {
     final newPing = await showModalBottomSheet<PingModel>(
       context: context,
@@ -228,6 +237,7 @@ class _PingListModalState extends State<PingListModal> {
                           setState(() {
                             selectedPing = ping;
                           });
+                          _playVibration(selectedPing!.pattern);
                           // Navigator.pop(
                           //     context, ping); // ✅ Return selected ping
                         },

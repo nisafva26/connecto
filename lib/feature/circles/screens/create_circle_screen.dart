@@ -289,6 +289,7 @@ class _CreateCircleScreenState extends ConsumerState<CreateCircleScreen> {
               child: ElevatedButton(
                 onPressed: () async {
                   log('selected color : ${colorToHex(selectedColor)}');
+                  log('selected users : ${widget.selectedUsers}');
                   // Handle Add Circle
                   await ref.read(circleNotifierProvider.notifier).addCircle(
                         circleName: circleNameController.text,

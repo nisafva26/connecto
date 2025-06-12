@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connecto/feature/circles/models/circle_model.dart';
 import 'package:connecto/feature/circles/models/group_message_model.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
@@ -23,6 +24,20 @@ class GroupPingChatScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Clear new message flag when user opens the group chat
+    Future<void> clearGroupChatFlag({
+      required String circleId,
+      required String userId,
+    }) async {
+      final flagRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('groupChatFlags')
+          .doc(circleId);
+
+      await flagRef.update({'hasNewMessage': false});
+    }
+
     final ScrollController _scrollController = ScrollController();
     final currentUser = FirebaseAuth.instance.currentUser!.uid;
 
@@ -34,6 +49,35 @@ class GroupPingChatScreen extends ConsumerWidget {
           _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
         }
       });
+    }
+
+    Future<void> updateGroupChatFlagsForNewMessage(
+        String circleId, String senderId) async {
+      final firestore = FirebaseFirestore.instance;
+
+      // Fetch the circle to get all registered users
+      final circleSnapshot =
+          await firestore.collection('circles').doc(circleId).get();
+
+      if (!circleSnapshot.exists) return;
+
+      final data = circleSnapshot.data();
+      final List<dynamic> registeredUsers = data?['registeredUsers'] ?? [];
+
+      // Loop through users and set flag
+      for (final userId in registeredUsers) {
+        if (userId != senderId) {
+          await firestore
+              .collection('users')
+              .doc(userId)
+              .collection('groupChatFlags')
+              .doc(circleId)
+              .set({
+            'hasNewMessage': true,
+            'lastUpdated': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      }
     }
 
     final messagesStream = FirebaseFirestore.instance
@@ -72,8 +116,25 @@ class GroupPingChatScreen extends ConsumerWidget {
           'senderId': user.uid,
         }
       });
+
+      await FirebaseFunctions.instance
+          .httpsCallable('sendGroupPingNotification')
+          .call({
+        "circleId": circleId,
+        "messageText": ping.name,
+        "senderId": currentUser,
+        "senderName": currentUserAsync.value!.fullName,
+        "vibrationPattern": ping.pattern.join(','), // 👈 make sure it's a string
+      });
+
+      // ✅ Set flag for others
+      await updateGroupChatFlagsForNewMessage(circleId, user.uid);
     }
 
+    // ✅ Clear the hasNewMessage flag when screen opens
+    Future.microtask(() async {
+      await clearGroupChatFlag(circleId: circleId, userId: currentUser);
+    });
     return Scaffold(
       backgroundColor: const Color(0xff001311),
       appBar: PreferredSize(
@@ -243,6 +304,23 @@ class GroupPingChatScreen extends ConsumerWidget {
                       if (selectedPing != null) {
                         sendPingToGroup(selectedPing);
                       }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _bottomActionButton(
+                    icon: Icons.hourglass_empty,
+                    label: "Create Gathering",
+                    onTap: () {
+                      context.push(
+                        '/gathering/create-gathering-circle',
+                        extra: {
+                          'registeredUsers':
+                              circle.registeredUsers, // List<UserModel>?
+                          'unregisteredUsers': circle.unregisteredUsers,
+                        },
+                      );
                     },
                   ),
                 ),
