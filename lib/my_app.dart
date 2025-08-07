@@ -8,6 +8,7 @@ import 'package:connecto/feature/auth/screens/user_details_screen.dart';
 import 'package:connecto/feature/bond_score/screens/bond_relationship_screen.dart';
 import 'package:connecto/feature/circles/models/circle_model.dart';
 import 'package:connecto/feature/circles/screens/circle_chat_screen.dart';
+import 'package:connecto/feature/dashboard/screens/access_request_admin.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
 import 'package:connecto/feature/circles/screens/create_circle_screen.dart';
 import 'package:connecto/feature/dashboard/screens/friends_details_screen.dart';
@@ -24,6 +25,7 @@ import 'package:connecto/feature/gatherings/screens/gathering_list.dart';
 import 'package:connecto/feature/gatherings/screens/location_details_gathering.dart';
 import 'package:connecto/feature/gatherings/screens/select_location_gathering.dart';
 import 'package:connecto/feature/gatherings/screens/select_location_screen.dart';
+import 'package:connecto/feature/gatherings/widgets/location_details_popup.dart';
 import 'package:connecto/feature/pings/screens/ping_chat_screen.dart';
 import 'package:connecto/feature/video_creation/screens/video_from_photos_screen.dart';
 import 'package:connecto/notification_handler.dart';
@@ -90,7 +92,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       // if (user == null) {
       //   final phone = state.uri.queryParameters['phone'] ??
       //       ref.read(requestedPhoneProvider);
-      //   ;
+      //   if (phone == null || phone.isEmpty) {
+      //     return '/access-request';
+      //   }
+
       //   log('phone in router: $phone');
       //   final accessDoc =
       //       ref.watch(accessRequestProvider(phone ?? '')).asData?.value;
@@ -295,6 +300,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                           extra?['registeredUsers'] as List<UserModel>?,
                       unregisteredUsers: extra?['unregisteredUsers']
                           as List<Map<String, String>>?,
+                      shouldPop: extra?['shouldPop'] ?? true as bool?,
+                      circleId: extra?['circleId'] as String?,
                     );
                   },
                 ),
@@ -302,9 +309,24 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                   path: 'gathering-details/:gatheringId',
                   // use your app's root navigator key
                   parentNavigatorKey: rootNavigatorKey,
-                  builder: (context, state) {
+                  pageBuilder: (context, state) {
                     final gatheringId = state.pathParameters['gatheringId']!;
-                    return GatheringDetailsScreen(gatheringId: gatheringId);
+                    return CustomTransitionPage(
+                      key: state.pageKey,
+                      child: GatheringDetailsScreen(gatheringId: gatheringId),
+                      transitionsBuilder:
+                          (context, animation, secondaryAnimation, child) {
+                        const begin = Offset(1.0, 0.0);
+                        const end = Offset.zero;
+                        final tween = Tween(begin: begin, end: end)
+                            .chain(CurveTween(curve: Curves.ease));
+
+                        return SlideTransition(
+                          position: animation.drive(tween),
+                          child: child,
+                        );
+                      },
+                    );
                   },
                 ),
                 GoRoute(
@@ -317,52 +339,193 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 ),
                 GoRoute(
                   path: 'select-location',
-                  builder: (context, state) {
+                  parentNavigatorKey: rootNavigatorKey,
+                  pageBuilder: (context, state) {
                     final eventType = state.extra as String;
-                    return SelectLocationGatheringScreen(eventType: eventType);
-                  },
-                ),
-                GoRoute(
-                  path: 'location-details',
-                  builder: (context, state) {
-                    final data = state.extra as Map<String, dynamic>;
-                    final place = data['place'] as PlacesSearchResult;
-                    final activity = data['activity'] as String;
-                    return LocationDetailsGatheringScreen(
-                      placesSearchResult: place,
-                      activty: activity,
+                    return CustomTransitionPage(
+                      key: state.pageKey,
+                      transitionDuration: Duration(milliseconds: 400),
+                      child:
+                          SelectLocationGatheringScreen(eventType: eventType),
+                      transitionsBuilder:
+                          (context, animation, secondaryAnimation, child) {
+                        final tween = Tween<Offset>(
+                          begin: const Offset(0, 1), // 👈 from bottom
+                          end: Offset.zero,
+                        ).chain(CurveTween(curve: Curves.easeInOut));
+                        return SlideTransition(
+                          position: animation.drive(tween),
+                          child: child,
+                        );
+                      },
                     );
                   },
                 ),
+
+                GoRoute(
+                  path: 'location-details',
+                  parentNavigatorKey: rootNavigatorKey,
+                  pageBuilder: (context, state) {
+                    final data = state.extra as Map<String, dynamic>;
+                    final place = data['place'] as PlacesSearchResult;
+                    final activity = data['activity'] as String;
+
+                    return CustomTransitionPage(
+                      key: state.pageKey,
+                      transitionDuration: Duration(milliseconds: 300),
+                      child: LocationDetailsGatheringScreen(
+                        placesSearchResult: place,
+                        activty: activity,
+                      ),
+                      transitionsBuilder:
+                          (context, animation, secondaryAnimation, child) {
+                        final tween = Tween<Offset>(
+                          begin: const Offset(0, 1), // 👈 from bottom
+                          end: Offset.zero,
+                        ).chain(CurveTween(curve: Curves.easeInOut));
+                        return SlideTransition(
+                          position: animation.drive(tween),
+                          child: child,
+                        );
+                      },
+                    );
+                  },
+                ),
+
+                GoRoute(
+                  path: 'location-popup',
+                  parentNavigatorKey: rootNavigatorKey,
+                  pageBuilder: (context, state) {
+                    final data = state.extra as Map<String, dynamic>;
+                    final place = data['placeId'] as String;
+
+                    return CustomTransitionPage(
+                      key: state.pageKey,
+                      transitionDuration: Duration(milliseconds: 300),
+                      child: LocationDetailsPopUp(
+                        placeId: place,
+                      ),
+                      transitionsBuilder:
+                          (context, animation, secondaryAnimation, child) {
+                        final tween = Tween<Offset>(
+                          begin: const Offset(0, 1), // 👈 from bottom
+                          end: Offset.zero,
+                        ).chain(CurveTween(curve: Curves.easeInOut));
+                        return SlideTransition(
+                          position: animation.drive(tween),
+                          child: child,
+                        );
+                      },
+                    );
+                  },
+                ),
+
+                // GoRoute(
+                //   path: 'select-location',
+                //   parentNavigatorKey: rootNavigatorKey,
+                //   builder: (context, state) {
+                //     final eventType = state.extra as String;
+                //     return SelectLocationGatheringScreen(eventType: eventType);
+                //   },
+                // ),
+                // GoRoute(
+                //   path: 'location-details',
+                //   parentNavigatorKey: rootNavigatorKey,
+                //   pageBuilder: (context, state) {
+                //     final data = state.extra as Map<String, dynamic>;
+                //     final place = data['place'] as PlacesSearchResult;
+                //     final activity = data['activity'] as String;
+                //     return CustomTransitionPage(
+                //       key: state.pageKey,
+                //       transitionsBuilder:
+                //           (context, animation, secondaryAnimation, child) {
+                //         final tween = Tween<Offset>(
+                //           begin: const Offset(1, 0), // from right to left
+                //           end: Offset.zero,
+                //         ).chain(CurveTween(curve: Curves.easeInOut));
+
+                //         return SlideTransition(
+                //           position: animation.drive(tween),
+                //           child: child,
+                //         );
+                //       },
+                //       child: LocationDetailsGatheringScreen(
+                //         placesSearchResult: place,
+                //         activty: activity,
+                //       ),
+                //     );
+                //   },
+                // ),
               ]),
           GoRoute(
             path: '/discover',
             builder: (context, state) => DiscoverScreen(),
           ),
           GoRoute(
-            path: '/profile',
-            builder: (context, state) => ProfileScreen(),
-          ),
+              path: '/profile',
+              builder: (context, state) => ProfileScreen(),
+              routes: [
+                GoRoute(
+                  path: 'admin-access-requests',
+                  parentNavigatorKey: rootNavigatorKey,
+                  builder: (context, state) =>
+                      const AdminAccessRequestsScreen(),
+                ),
+              ]),
         ],
       ),
 
       GoRoute(
         path: '/select-location',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final eventType = state.extra as String;
-          return SelectLocationScreen(eventType: eventType);
+
+          return CustomTransitionPage(
+            transitionDuration: Duration(milliseconds: 400),
+            child: SelectLocationScreen(eventType: eventType),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              const begin = Offset(0, 1); // start from bottom
+              const end = Offset.zero;
+              const curve = Curves.easeInOut;
+
+              final tween =
+                  Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+
+              return SlideTransition(
+                position: animation.drive(tween),
+                child: child,
+              );
+            },
+          );
         },
       ),
 
       GoRoute(
         path: '/location-details',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final data = state.extra as Map<String, dynamic>;
           final place = data['place'] as PlacesSearchResult;
           final activity = data['activity'] as String;
-          return LocationDetailsScreen(
-            placesSearchResult: place,
-            activty: activity,
+
+          return CustomTransitionPage(
+            transitionDuration: Duration(milliseconds: 300), // smooth and slow
+            child: LocationDetailsScreen(
+              placesSearchResult: place,
+              activty: activity,
+            ),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              const begin = Offset(0, 1); // from bottom
+              const end = Offset.zero;
+              final tween = Tween(begin: begin, end: end)
+                  .chain(CurveTween(curve: Curves.easeInOut));
+
+              return SlideTransition(
+                position: animation.drive(tween),
+                child: child,
+              );
+            },
           );
         },
       ),
@@ -470,14 +633,14 @@ class _MyAppState extends ConsumerState<MyApp> {
   }
 }
 
-class GoRouterRefreshNotifier extends ChangeNotifier {
-  GoRouterRefreshNotifier(Ref ref) {
-    ref.listen<User?>(
-      authStateProvider.select((value) => value.asData?.value),
-      (previous, next) {
-        log('=======refreshing=====');
-        notifyListeners(); // ✅ Notify GoRouter to refresh when auth state changes
-      },
-    );
-  }
-}
+// class GoRouterRefreshNotifier extends ChangeNotifier {
+//   GoRouterRefreshNotifier(Ref ref) {
+//     ref.listen<User?>(
+//       authStateProvider.select((value) => value.asData?.value),
+//       (previous, next) {
+//         log('=======refreshing=====');
+//         notifyListeners(); // ✅ Notify GoRouter to refresh when auth state changes
+//       },
+//     );
+//   }
+// }

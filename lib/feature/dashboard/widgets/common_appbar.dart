@@ -19,14 +19,41 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
           userAsync.when(data: (user) {
             return Row(
               children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.white,
-                  child: Text(
-                    getInitials(user!.fullName),
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                // CircleAvatar(
+                //   radius: 20,
+                //   backgroundColor: Colors.white,
+                //   child: Text(
+                //     getInitials(user!.fullName),
+                //     style: TextStyle(fontWeight: FontWeight.w700),
+                //   ),
+                // ),
+                Container(
+                 decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF03FFE2)
+                            .withOpacity(0.4), // Glow effect
+                        blurRadius: 10,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.tertiary, // dark circle
+                    child: Text(
+                      getInitials(user!.fullName),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
                 ),
+
                 const SizedBox(width: 16),
               ],
             );

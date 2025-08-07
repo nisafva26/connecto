@@ -8,6 +8,7 @@ final List<Map<String, dynamic>> activityList = [
   {"name": "Padel Tennis", "icon": Icons.sports_tennis},
   {"name": "Coffee", "icon": Icons.local_cafe},
   {"name": "Sheesha Longue", "icon": FontAwesomeIcons.bong},
+  {"name": "Macha", "icon": FontAwesomeIcons.glassWater},
   {"name": "Other", "icon": Icons.group},
 ];
 
@@ -19,5 +20,7 @@ final List<Map<String, dynamic>> reservedActivityList = [
   {"name": "Padel Tennis", "icon": Icons.sports_tennis},
   {"name": "Coffee", "icon": Icons.local_cafe},
   {"name": "Sheesha Longue", "icon": FontAwesomeIcons.bong},
+  {"name": "Macha", "icon": FontAwesomeIcons.glassWater},
+
  
 ];

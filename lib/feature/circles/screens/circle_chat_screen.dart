@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connecto/feature/circles/models/circle_model.dart';
 import 'package:connecto/feature/circles/models/group_message_model.dart';
+import 'package:connecto/feature/circles/widgets/event_message_card.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
+import 'package:connecto/feature/gatherings/models/gathering_model.dart';
 import 'package:connecto/feature/pings/model/ping_model.dart';
 import 'package:connecto/feature/pings/screens/ping_list_screen.dart';
 import 'package:connecto/feature/pings/widgets/ping_visualizer_chat.dart';
@@ -14,6 +16,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+final circleGatheringsProvider =
+    StreamProvider.family<List<GatheringModel>, String>((ref, circleId) {
+  return FirebaseFirestore.instance
+      .collection('gatherings')
+      .where('circleId', isEqualTo: circleId)
+      .snapshots()
+      .map((snapshot) =>
+          snapshot.docs.map((doc) => GatheringModel.fromDoc(doc)).toList());
+});
+
 class GroupPingChatScreen extends ConsumerWidget {
   final String circleId;
 
@@ -24,6 +36,9 @@ class GroupPingChatScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final circleId = circle.id;
+    final gatheringListAsync = ref.watch(circleGatheringsProvider(circleId));
+
     // Clear new message flag when user opens the group chat
     Future<void> clearGroupChatFlag({
       required String circleId,
@@ -124,7 +139,8 @@ class GroupPingChatScreen extends ConsumerWidget {
         "messageText": ping.name,
         "senderId": currentUser,
         "senderName": currentUserAsync.value!.fullName,
-        "vibrationPattern": ping.pattern.join(','), // 👈 make sure it's a string
+        "vibrationPattern":
+            ping.pattern.join(','), // 👈 make sure it's a string
       });
 
       // ✅ Set flag for others
@@ -196,6 +212,70 @@ class GroupPingChatScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
+          gatheringListAsync.when(
+            data: (gatherings) {
+              final now = DateTime.now();
+              final upcoming =
+                  gatherings.where((g) => g.dateTime.isAfter(now)).toList();
+
+              if (upcoming.isEmpty) return SizedBox();
+
+              return Column(
+                children: upcoming.map((gathering) {
+                  final timeFormatted = DateFormat('hh:mm a - dd MMM yyyy')
+                      .format(gathering.dateTime);
+
+                  final text =
+                      "You have a group gathering for ${gathering.eventType}";
+
+                  return GestureDetector(
+                    onTap: () {
+                      context.push(
+                          '/gathering/gathering-details/${gathering.id}',
+                          extra: gathering);
+                    },
+                    child: Container(
+                      margin: EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Color(0xff091F1E),
+                        border: Border.symmetric(
+                          horizontal: BorderSide(
+                              color: Colors.grey.shade700, width: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.group, color: Colors.white),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(text,
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500)),
+                                const SizedBox(height: 4),
+                                Text(timeFormatted,
+                                    style: TextStyle(
+                                        color: Colors.grey, fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.arrow_forward, color: Colors.tealAccent)
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+            loading: () => SizedBox(),
+            error: (_, __) => SizedBox(),
+          ),
+
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: messagesStream,
@@ -218,6 +298,32 @@ class GroupPingChatScreen extends ConsumerWidget {
                     final message = GroupMessageModel.fromFirestore(doc);
 
                     final isMine = message.senderId == currentUser;
+
+                    // 🔁 NEW: Show event card message
+                    if (message.type == 'event') {
+                      return Align(
+                        alignment: isMine
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Padding(
+                       padding: const EdgeInsets.only(bottom: 20),
+                          child: Column(
+                            crossAxisAlignment:isMine? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                            children: [
+                              EventMessageCard(
+                                message: message,
+                                isMine: isMine,
+                              ),
+                               Text(
+                                DateFormat('hh:mm a').format(message.timestamp),
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
 
                     return Align(
                       alignment:
@@ -316,6 +422,8 @@ class GroupPingChatScreen extends ConsumerWidget {
                       context.push(
                         '/gathering/create-gathering-circle',
                         extra: {
+                          'circleId': circleId,
+
                           'registeredUsers':
                               circle.registeredUsers, // List<UserModel>?
                           'unregisteredUsers': circle.unregisteredUsers,

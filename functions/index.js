@@ -22,6 +22,8 @@ const logger = require("firebase-functions/logger");
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 
+const axios = require("axios");
+
 admin.initializeApp();
 const db = admin.firestore();
 
@@ -93,11 +95,20 @@ exports.startTrackingGathering = functions.pubsub
         const activeDoc = await activeRef.get();
 
         if (!activeDoc.exists) {
+          // await activeRef.set({
+          //   status: "tracking",
+          //   location: gathering.location, // Add lat/lng for arrival check
+          //   name: gathering.name,
+          //   participants: {} // We'll add participants as they start sending location
+          // });
           await activeRef.set({
             status: "tracking",
-            location: gathering.location, // Add lat/lng for arrival check
-            name: gathering.name,
-            participants: {} // We'll add participants as they start sending location
+            dateTime: gathering.dateTime,       // ✅ Required for reminders
+            location: gathering.location,        // ✅ Required for ETA & arrival
+            name: gathering.name,                // ✅ Used in all notifications
+            hostId: gathering.hostId,            // ✅ For arrival alerts
+            reminderSent: false,                 // ✅ Used in reminder check
+            participants: {}                     // Add participants later
           });
         }
       }
@@ -165,31 +176,31 @@ exports.updateUserLocation = functions.https.onCall(async (data, context) => {
 });
 
 //// 6. Notify When User Reaches Venue (Every 5 Min)
-exports.checkUserArrival = functions.pubsub
-  .schedule("every 5 minutes")
-  .onRun(async () => {
-    const snapshot = await db.collection("activeGatherings")
-      .where("status", "==", "tracking")
-      .get();
+// exports.checkUserArrival = functions.pubsub
+//   .schedule("every 5 minutes")
+//   .onRun(async () => {
+//     const snapshot = await db.collection("activeGatherings")
+//       .where("status", "==", "tracking")
+//       .get();
 
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      const venue = data.location;
-      const participants = data.participants;
+//     snapshot.forEach(doc => {
+//       const data = doc.data();
+//       const venue = data.location;
+//       const participants = data.participants;
 
-      for (const uid in participants) {
-        const p = participants[uid];
-        if (p.lat && p.lng && venue) {
-          const distance = getDistance(venue, p);
-          if (distance < 100) {
-            sendPushNotification(uid, "🎉 You have arrived at the venue!");
-          }
-        }
-      }
-    });
+//       for (const uid in participants) {
+//         const p = participants[uid];
+//         if (p.lat && p.lng && venue) {
+//           const distance = getDistance(venue, p);
+//           if (distance < 100) {
+//             sendPushNotification(uid, "🎉 You have arrived at the venue!");
+//           }
+//         }
+//       }
+//     });
 
-    return null;
-  });
+//     return null;
+//   });
 
 // Helper to calculate haversine distance in meters
 function getDistance(loc1, loc2) {
@@ -530,7 +541,7 @@ exports.updateEndedGatherings = functions.pubsub
 
 // send notification
 exports.sendPingNotification = functions.https.onCall(async (data, context) => {
-  const { chatId, friendId, friendName, vibrationPattern , userId } = data;
+  const { chatId, friendId, friendName, vibrationPattern, userId } = data;
 
   if (!chatId || !friendId || !friendName || !vibrationPattern) {
     throw new functions.https.HttpsError(
@@ -818,6 +829,590 @@ exports.sendGroupPingNotification = functions.https.onCall(async (data, context)
     throw new functions.https.HttpsError("internal", error.message);
   }
 });
+
+exports.notifyHostOnRSVP = functions.firestore
+  .document("gatherings/{gatheringId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const gatheringId = context.params.gatheringId;
+
+    const beforeInvitees = before.invitees || {};
+    const afterInvitees = after.invitees || {};
+
+    const hostId = after.hostId;
+    if (!hostId) return null;
+
+    for (const [uid, afterInfo] of Object.entries(afterInvitees)) {
+      const beforeInfo = beforeInvitees[uid];
+
+      // Skip if no change in status
+      if (
+        beforeInfo?.status === afterInfo?.status ||
+        !["accepted", "declined"].includes(afterInfo?.status)
+      ) continue;
+
+      // 🔔 Invitee has responded with accepted/declined
+      const inviteeDoc = await admin.firestore().collection("users").doc(uid).get();
+      const inviteeName = inviteeDoc.exists ? inviteeDoc.data().fullName ?? "Someone 1" : "Someone 2";
+
+      const hostDoc = await admin.firestore().collection("users").doc(hostId).get();
+      const fcmToken = hostDoc.data()?.fcmToken;
+      if (!fcmToken) return null;
+
+      const statusText = afterInfo.status === "accepted" ? "accepted" : "declined";
+
+      await admin.messaging().send({
+        token: fcmToken,
+        notification: {
+          title: `${inviteeName} ${statusText} your invite`,
+          body: `For gathering: ${after.name || "your event"}`,
+        },
+        data: {
+          type: "gathering",
+          gatheringId: gatheringId,
+          inviteeId: uid,
+          response: statusText,
+        },
+        android: { priority: "high" },
+        apns: {
+          headers: { "apns-priority": "10" },
+          payload: {
+            aps: {
+              alert: {
+                title: `${inviteeName} ${statusText} your invite`,
+                body: `For gathering: ${after.name || "your event"}`,
+              },
+              sound: "default",
+            },
+          },
+        },
+      });
+
+      console.log(`🔔 Sent RSVP ${statusText} notification from ${uid} to host ${hostId}`);
+    }
+
+    return null;
+  });
+
+
+
+// notify host on public join
+exports.notifyHostOnPublicJoin = functions.firestore
+  .document("gatherings/{gatheringId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const gatheringId = context.params.gatheringId;
+
+    const beforeUsers = before.joinedPublicUsers || {};
+    const afterUsers = after.joinedPublicUsers || {};
+    const hostId = after.hostId;
+
+    if (!hostId) return null;
+
+    for (const [uid, userInfo] of Object.entries(afterUsers)) {
+      const wasThereBefore = beforeUsers[uid];
+      const isNew = !wasThereBefore && userInfo.status === 'pending';
+
+      if (!isNew) continue;
+
+      const hostDoc = await admin.firestore().collection('users').doc(hostId).get();
+      const fcmToken = hostDoc.data()?.fcmToken;
+      if (!fcmToken) continue;
+
+      const name = userInfo.name || "Someone";
+
+      await admin.messaging().send({
+        token: fcmToken,
+        notification: {
+          title: `${name} requested to join your public event`,
+          body: `Tap to review the request for: ${after.name ?? 'your gathering'}`,
+        },
+        data: {
+          type: "gathering",
+          gatheringId: gatheringId,
+          userId: uid,
+        },
+        android: { priority: "high" },
+        apns: {
+          headers: { "apns-priority": "10" },
+          payload: {
+            aps: {
+              alert: {
+                title: `${name} requested to join your public event`,
+                body: `Tap to review the request for: ${after.name ?? 'your gathering'}`,
+              },
+              sound: "default",
+            },
+          },
+        },
+      });
+
+      console.log(`📩 Sent public join request notification from ${uid} to host ${hostId}`);
+    }
+
+    return null;
+  });
+
+
+//notiify user on public join
+
+exports.notifyPublicUserOnHostResponse = functions.firestore
+  .document("gatherings/{gatheringId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const gatheringId = context.params.gatheringId;
+
+    const beforeUsers = before.joinedPublicUsers || {};
+    const afterUsers = after.joinedPublicUsers || {};
+
+    for (const [uid, afterInfo] of Object.entries(afterUsers)) {
+      const beforeInfo = beforeUsers[uid];
+
+      if (
+        !beforeInfo ||
+        beforeInfo.status === afterInfo.status ||
+        !["accepted", "declined"].includes(afterInfo.status)
+      ) {
+        continue;
+      }
+
+      const userDoc = await admin.firestore().collection("users").doc(uid).get();
+      const fcmToken = userDoc.data()?.fcmToken;
+      if (!fcmToken) continue;
+
+      const status = afterInfo.status;
+      const gatheringName = after.name || "the event";
+
+      let title = "";
+      let body = "";
+
+      if (status === "accepted") {
+        title = "🎉 Request Approved!";
+        body = `You've been accepted to join "${gatheringName}". See you there!`;
+      } else if (status === "declined") {
+        title = "Request Declined";
+        body = `Your request to join "${gatheringName}" was declined by the host.`;
+      }
+
+      await admin.messaging().send({
+        token: fcmToken,
+        notification: { title, body },
+        data: {
+          type: "gathering",
+          gatheringId: gatheringId,
+          status,
+        },
+        android: { priority: "high" },
+        apns: {
+          headers: { "apns-priority": "10" },
+          payload: {
+            aps: {
+              alert: { title, body },
+              sound: "default",
+            },
+          },
+        },
+      });
+
+      console.log(`🔔 Sent host response (${status}) to ${uid} for gathering ${gatheringId}`);
+    }
+
+    return null;
+  });
+
+
+//   // ------------------ 1. One Hour Before Reminder ------------------
+// exports.sendPreEventReminders = functions.pubsub
+// .schedule("every 5 minutes")
+// .onRun(async () => {
+//   const now = new Date();
+//   const snapshot = await db.collection("activeGatherings").get();
+
+//   for (const doc of snapshot.docs) {
+//     const gatheringId = doc.id;
+//     const gatheringRef = db.collection("gatherings").doc(gatheringId);
+//     const gatheringSnap = await gatheringRef.get();
+//     const gatheringData = gatheringSnap.data();
+
+//     if (!gatheringData?.dateTime) continue;
+
+//     const eventTime = gatheringData.dateTime.toDate();
+//     const diffMins = (eventTime - now) / 60000;
+
+//     if (diffMins < 60 && diffMins > 55 && !doc.data().reminderSent) {
+//       await notifyParticipants(gatheringId, `🕐 Your event "${gatheringData.name}" starts in 1 hour!`);
+//       await doc.ref.update({ reminderSent: true });
+//     }
+//   }
+// });
+
+// // ------------------ 2. Leave Now ETA-based Reminder ------------------
+// exports.sendLeaveNowReminders = functions.pubsub
+// .schedule("every 5 minutes")
+// .onRun(async () => {
+//   const now = new Date();
+//   const snapshot = await db.collection("activeGatherings").get();
+
+//   for (const doc of snapshot.docs) {
+//     const gatheringId = doc.id;
+//     const gatheringRef = db.collection("gatherings").doc(gatheringId);
+//     const gatheringSnap = await gatheringRef.get();
+//     const gatheringData = gatheringSnap.data();
+
+//     if (!gatheringData?.dateTime || !gatheringData?.location) continue;
+
+//     const eventTime = gatheringData.dateTime.toDate();
+//     const diffMins = (eventTime - now) / 60000;
+
+//     if (diffMins < 40 && diffMins > 10) {
+//       const participantsSnap = await doc.ref.collection("participants").get();
+//       for (const userDoc of participantsSnap.docs) {
+//         const { lat, lng } = userDoc.data();
+//         if (!lat || !lng) continue;
+
+//         const etaMins = await getETA(lat, lng, gatheringData.location.lat, gatheringData.location.lng);
+//         if (etaMins && etaMins + 5 >= diffMins) {
+//           await notifyUser(userDoc.id, `🚗 Leave now to reach "${gatheringData.name}" on time.`);
+//         }
+//       }
+//     }
+//   }
+// });
+
+// // ------------------ 3. Arrival Notifications ------------------
+// exports.sendArrivalNotifications = functions.pubsub
+// .schedule("every 5 minutes")
+// .onRun(async () => {
+//   const snapshot = await db.collection("activeGatherings").get();
+
+//   for (const doc of snapshot.docs) {
+//     const gatheringId = doc.id;
+//     const gatheringRef = db.collection("gatherings").doc(gatheringId);
+//     const gatheringSnap = await gatheringRef.get();
+//     const gatheringData = gatheringSnap.data();
+
+//     const hostId = gatheringData?.hostId;
+//     const eventName = gatheringData?.name;
+//     const location = gatheringData?.location;
+//     if (!eventName || !location?.lat || !location?.lng) continue;
+
+//     const participantsSnap = await doc.ref.collection("participants").get();
+//     for (const userDoc of participantsSnap.docs) {
+//       const userId = userDoc.id;
+//       const data = userDoc.data();
+//       if (data.arrived || !data.lat || !data.lng) continue;
+
+//       const distance = getDistanceFromLatLonInMeters(location.lat, location.lng, data.lat, data.lng);
+//       if (distance <= 100) {
+//         const name = data.name || "A participant";
+
+//         // Mark as arrived
+//         await userDoc.ref.update({ arrived: true });
+
+//         // Notify the arriving user
+//         await notifyUser(userId, `🎉 You have arrived at "${eventName}"!`);
+
+//         // Notify other participants (excluding current user)
+//         for (const otherDoc of participantsSnap.docs) {
+//           const otherId = otherDoc.id;
+//           if (otherId !== userId) {
+//             await notifyUser(otherId, `✅ ${name} has arrived at the event.`);
+//           }
+//         }
+
+//         // Notify the host (if not the one who arrived)
+//         if (hostId && hostId !== userId) {
+//           await notifyUser(hostId, `✅ ${name} has arrived at the event.`);
+//         }
+//       }
+//     }
+//   }
+// });
+
+// ------------------ 1. One Hour Before Reminder ------------------
+exports.sendPreEventReminders = functions.pubsub
+  .schedule("every 5 minutes")
+  .onRun(async () => {
+    const now = new Date();
+    const snapshot = await db
+      .collection("gatherings")
+      .where("status", "in", ["confirmed", "tracking"])
+      .get();
+
+    for (const doc of snapshot.docs) {
+      const gatheringId = doc.id;
+      const { dateTime, name, reminderSent } = doc.data();
+
+      if (!dateTime || reminderSent) continue;
+
+      const eventTime = dateTime.toDate();
+      const diffMins = (eventTime - now) / 60000;
+
+      if (diffMins < 60 && diffMins > 55) {
+        console.log(`⏰ Sending 1-hour reminder for "${name}" (${gatheringId})`);
+        await notifyParticipants(gatheringId, `🕐 Your event "${name}" starts in 1 hour!`, "reminder");
+        await doc.ref.update({ reminderSent: true });
+      }
+    }
+  });
+
+// ------------------ 2. Leave Now ETA-based Reminder ------------------
+exports.sendLeaveNowReminders = functions.pubsub
+  .schedule("every 5 minutes")
+  .onRun(async () => {
+    const now = new Date();
+    const snapshot = await db
+      .collection("gatherings")
+      .where("status", "in", ["confirmed", "tracking"])
+      .get();
+
+    for (const doc of snapshot.docs) {
+      const gatheringId = doc.id;
+      const { dateTime, name, location } = doc.data();
+      if (!dateTime || !location) continue;
+
+      const eventTime = dateTime.toDate();
+      const diffMins = (eventTime - now) / 60000;
+
+      if (diffMins < 40 && diffMins > 10) {
+        const participantsSnap = await db.collection("gatherings").doc(gatheringId).collection("invitees").get();
+
+        for (const userDoc of participantsSnap.docs) {
+          const { lat, lng } = userDoc.data();
+          if (!lat || !lng) continue;
+
+          const etaMins = await getETA(lat, lng, location.lat, location.lng);
+          if (etaMins && etaMins + 5 >= diffMins) {
+            console.log(`🚗 Sending leave-now to ${userDoc.id} for "${name}"`);
+            await notifyUser(userDoc.id, `🚗 Leave now to reach "${name}" on time.`, gatheringId, "leave_now");
+          }
+        }
+      }
+    }
+  });
+
+// ------------------ 3. Arrival Notifications ------------------
+exports.sendArrivalNotifications = functions.pubsub
+  .schedule("every 5 minutes")
+  .onRun(async () => {
+    const snapshot = await db
+      .collection("gatherings")
+      .where("status", "==", "tracking")
+      .get();
+
+    for (const doc of snapshot.docs) {
+      const gatheringId = doc.id;
+      const { hostId, name, location } = doc.data();
+      if (!name || !location?.lat || !location?.lng) continue;
+
+      const participantsSnap = await db.collection("gatherings").doc(gatheringId).collection("invitees").get();
+
+      for (const userDoc of participantsSnap.docs) {
+        const userId = userDoc.id;
+        const data = userDoc.data();
+        if (data.arrived || !data.lat || !data.lng) continue;
+
+        const distance = getDistanceFromLatLonInMeters(location.lat, location.lng, data.lat, data.lng);
+        if (distance <= 100) {
+          const displayName = data.name || "A participant";
+
+          console.log(`🎯 ${displayName} has arrived at "${name}"`);
+
+          await userDoc.ref.update({ arrived: true });
+
+          await notifyUser(userId, `🎉 You have arrived at "${name}"!`, gatheringId, "arrival");
+
+          for (const otherDoc of participantsSnap.docs) {
+            const otherId = otherDoc.id;
+            if (otherId !== userId) {
+              await notifyUser(otherId, `✅ ${displayName} has arrived at the event.`, gatheringId, "arrival");
+            }
+          }
+
+          if (hostId && hostId !== userId) {
+            await notifyUser(hostId, `✅ ${displayName} has arrived at the event.`, gatheringId, "arrival");
+          }
+        }
+      }
+    }
+  });
+
+
+// // ------------------ Utility Functions ------------------
+
+
+async function notifyParticipants(gatheringId, message, status = "reminder") {
+  const participantsSnap = await db.collection("gatherings").doc(gatheringId).collection("invitees").get();
+  for (const userDoc of participantsSnap.docs) {
+    await notifyUser(userDoc.id, message, gatheringId, status);
+  }
+}
+
+async function notifyUser(userId, body, gatheringId = "", status = "reminder") {
+  const userSnap = await db.collection("users").doc(userId).get();
+  const fcmToken = userSnap.data()?.fcmToken;
+  if (!fcmToken) return;
+
+  let title = "📍 Connecto";
+  switch (status) {
+    case "reminder":
+      title = "⏰ Upcoming Event Reminder";
+      break;
+    case "leave_now":
+      title = "🚗 Time to Leave!";
+      break;
+    case "arrival":
+      title = "🎉 Arrival Update";
+      break;
+    default:
+      title = "📍 Connecto";
+  }
+
+  await admin.messaging().send({
+    token: fcmToken,
+    notification: { title, body },
+    data: {
+      type: "gathering",
+      gatheringId,
+      status,
+    },
+    android: { priority: "high" },
+    apns: {
+      headers: { "apns-priority": "10" },
+      payload: {
+        aps: {
+          alert: { title, body },
+          sound: "default",
+        },
+      },
+    },
+  });
+}
+
+
+
+
+// async function notifyParticipants(gatheringId, message) {
+// const participantsSnap = await db.collection("activeGatherings").doc(gatheringId).collection("participants").get();
+// for (const userDoc of participantsSnap.docs) {
+//   await notifyUser(userDoc.id, message);
+// }
+// }
+
+// async function notifyUser(userId, message) {
+// const userRef = await db.collection("users").doc(userId).get();
+// const token = userRef.data()?.fcmToken;
+// if (!token) return;
+
+// await admin.messaging().send({
+//   token,
+//   notification: {
+//     title: "📍 Gathering Alert",
+//     body: message,
+//   },
+//   data: {
+//     type: "gathering_reminder"
+//   }
+// });
+// }
+
+async function getETA(fromLat, fromLng, toLat, toLng) {
+  try {
+    const MAPBOX_TOKEN = await functions.config().mapbox.token;
+    const res = await axios.get(`https://api.mapbox.com/directions/v5/mapbox/driving/${fromLng},${fromLat};${toLng},${toLat}`, {
+      params: {
+        access_token: MAPBOX_TOKEN
+      }
+    });
+    const durationSec = res.data.routes[0].duration;
+    return Math.round(durationSec / 60);
+  } catch (err) {
+    console.error("Mapbox ETA error:", err);
+    return null;
+  }
+}
+
+function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
+  function deg2rad(deg) {
+    return deg * (Math.PI / 180);
+  }
+
+  const R = 6371000; // meters
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+
+exports.notifyAdminsOnAccessRequest = functions.firestore
+  .document("accessRequests/{phone}")
+  .onCreate(async (snap, context) => {
+    const data = snap.data();
+
+    if (!data?.phoneNumber || !data?.fullName || !data?.email) return;
+
+    // Save to centralized admin notification collection
+    await db.collection("notifications_admin").add({
+      type: "accessRequest",
+      requesterPhone: data.phoneNumber,
+      fullName: data.fullName,
+      email: data.email,
+      status: "pending",
+      requestedAt: data.requestedAt || admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // List of hardcoded admin phone numbers
+    const adminPhoneNumbers = ["+971559533272", "+916282745946"];
+
+    const tokens = [];
+
+    // Fetch FCM tokens from users collection
+    for (const phone of adminPhoneNumbers) {
+      const userQuery = await db.collection("users").where("phoneNumber", "==", phone).get();
+      if (!userQuery.empty) {
+        const userDoc = userQuery.docs[0];
+        const token = userDoc.data().fcmToken;
+        console.log(`✅ Found FCM token for ${phone}: ${token}`);
+        if (token) tokens.push(token);
+      } else {
+        console.log(`❌ No user found for phone: ${phone}`);
+      }
+    }
+    
+
+    // Send FCM if tokens exist
+    if (tokens.length > 0) {
+      const payload = {
+        notification: {
+          title: "🔐 New Access Request",
+          body: `${data.fullName} requested access to Connecto`,
+        },
+        data: {
+          type: "accessRequest",
+          phoneNumber: data.phoneNumber,
+        },
+      };
+
+      await admin.messaging().sendEachForMulticast({
+        tokens,
+        ...payload,
+      });
+
+      console.log('FCM response:', JSON.stringify(response));
+    }
+  });
+
+
+
+
 
 
 

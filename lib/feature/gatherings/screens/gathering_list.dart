@@ -1,13 +1,17 @@
 import 'dart:developer';
 
+import 'package:animations/animations.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connecto/feature/dashboard/widgets/common_appbar.dart';
 import 'package:connecto/feature/gatherings/models/gathering_model.dart';
+import 'package:connecto/feature/gatherings/screens/create_gathering_circle.dart';
 import 'package:connecto/feature/gatherings/widgets/empty_invite_card.dart';
 import 'package:connecto/feature/gatherings/widgets/gathering_card.dart';
+import 'package:connecto/my_app.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:loading_indicator/loading_indicator.dart';
@@ -53,7 +57,13 @@ import 'package:loading_indicator/loading_indicator.dart';
 
 final pendingGatheringsProvider =
     StreamProvider.autoDispose<List<GatheringModel>>((ref) async* {
-  final uid = FirebaseAuth.instance.currentUser!.uid;
+  // final uid = FirebaseAuth.instance.currentUser!.uid;
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) {
+    yield [];
+    return;
+  }
+  final uid = user.uid;
 
   final snapshots = FirebaseFirestore.instance
       .collectionGroup('invitees')
@@ -80,7 +90,13 @@ final pendingGatheringsProvider =
 
 final upcomingGatheringsProvider =
     StreamProvider.autoDispose<List<GatheringModel>>((ref) async* {
-  final uid = FirebaseAuth.instance.currentUser!.uid;
+  // final uid = FirebaseAuth.instance.currentUser!.uid;
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) {
+    yield [];
+    return;
+  }
+  final uid = user.uid;
 
   final snapshots = FirebaseFirestore.instance
       .collectionGroup('invitees')
@@ -110,7 +126,13 @@ final upcomingGatheringsProvider =
 
 final previousGatheringsProvider =
     StreamProvider.autoDispose<List<GatheringModel>>((ref) async* {
-  final uid = FirebaseAuth.instance.currentUser!.uid;
+  // final uid = FirebaseAuth.instance.currentUser!.uid;
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) {
+    yield [];
+    return;
+  }
+  final uid = user.uid;
 
   final snapshots = FirebaseFirestore.instance
       .collectionGroup('invitees')
@@ -139,6 +161,8 @@ final previousGatheringsProvider =
 });
 
 final publicGatheringsProvider = StreamProvider<List<GatheringModel>>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) return Stream.value([]);
   final query = FirebaseFirestore.instance
       .collection('gatherings')
       .where('isPublic', isEqualTo: true)
@@ -378,14 +402,104 @@ class _GatheringsTabState extends ConsumerState<GatheringsTab> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF03FFE2),
-        shape: const CircleBorder(),
-        heroTag: 'fab-1',
-        onPressed: () {
-          context.go('/gathering/create-gathering-circle');
-        },
-        child: const Icon(Icons.calendar_today, size: 20),
+      // floatingActionButton: FloatingActionButton(
+      //   backgroundColor: const Color(0xFF03FFE2),
+      //   shape: const CircleBorder(),
+      //   heroTag: 'fab-1',
+      //   onPressed: () {
+      //     context.go('/gathering/create-gathering-circle');
+      //   },
+      //   child: const Icon(Icons.add, size: 20),
+      // ),
+      // floatingActionButton: Stack(
+      //   alignment: Alignment.bottomRight,
+      //   children: [
+      //     OpenContainer(
+      //       transitionDuration: Duration(milliseconds: 500),
+      //       closedShape: CircleBorder(),
+      //       closedElevation: 6.0,
+      //       openElevation: 0.0,
+      //       closedColor: const Color(0xFF03FFE2),
+      //       openColor: Theme.of(context).scaffoldBackgroundColor,
+      //       closedBuilder: (context, openContainer) {
+      //         return SizedBox(
+      //           height: 56,
+      //           width: 56,
+      //           child: GestureDetector(
+      //             onTap: openContainer,
+      //             child: const DecoratedBox(
+      //               decoration: BoxDecoration(
+      //                 color: Color(0xFF03FFE2),
+      //                 shape: BoxShape.circle,
+      //               ),
+      //               child: SizedBox(), // No icon here!
+      //             ),
+      //           ),
+      //         );
+      //       },
+      //       openBuilder: (context, _) => CreateGatheringCircleScreen(),
+      //     ),
+
+      //     // This sits *above* and doesn't animate
+      //     Positioned.fill(
+      //       child: IgnorePointer(
+      //         child: Container(
+      //           height: 56,
+      //           width: 56,
+      //           alignment: Alignment.center,
+      //           child: const Icon(Icons.add, size: 20, color: Colors.black),
+      //         ),
+      //       ),
+      //     )
+      //   ],
+      // ),
+
+      floatingActionButton: Stack(
+        alignment: Alignment.bottomRight,
+        children: [
+          // 1. The expanding container
+          OpenContainer(
+            transitionDuration: const Duration(milliseconds: 500),
+            closedShape: const CircleBorder(),
+            closedElevation: 6.0,
+            openElevation: 0.0,
+            closedColor: const Color(0xFF03FFE2),
+            openColor: Theme.of(context).scaffoldBackgroundColor,
+            closedBuilder: (context, openContainer) {
+              return SizedBox(
+                height: 56,
+                width: 56,
+                child: Material(
+                  color: Colors.transparent,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact(); // ✅ Vibration on tap
+                      openContainer();
+                    },
+                    customBorder: const CircleBorder(),
+                    splashColor:
+                        Colors.white.withOpacity(0.2), // ✅ Subtle ripple
+                    child: const SizedBox(), // No icon here
+                  ),
+                ),
+              );
+            },
+            openBuilder: (context, _) => CreateGatheringCircleScreen(),
+          ),
+
+          // 2. Static Icon overlay
+          Positioned(
+            child: IgnorePointer(
+              child: Container(
+                height: 56,
+                width: 56,
+                alignment: Alignment.center,
+                child: const Icon(Icons.add, size: 20, color: Colors.black),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

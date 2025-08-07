@@ -109,6 +109,8 @@ class GatheringModel {
   final int maxPublicParticipants;
   final int publicJoinCount;
   final String? photoRef;
+  final String? placeId;
+  final String? circleId;
 
   GatheringModel(
       {required this.id,
@@ -126,7 +128,9 @@ class GatheringModel {
       required this.joinedPublicUsers,
       required this.maxPublicParticipants,
       required this.publicJoinCount,
-      required this.photoRef});
+      required this.photoRef,
+      required this.placeId,
+      required this.circleId});
 
   factory GatheringModel.fromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -159,7 +163,9 @@ class GatheringModel {
         ),
         maxPublicParticipants: data['maxPublicParticipants'] ?? 0,
         publicJoinCount: data['publicJoinCount'] ?? 0,
-        photoRef: data['photoRef'] ?? '');
+        photoRef: data['photoRef'] ?? '',
+        placeId: data['placeId'] ?? '',
+        circleId: data['circleId'] ?? '');
   }
 
   factory GatheringModel.fromMap(Map<String, dynamic> map, String docId) {
@@ -197,6 +203,8 @@ class GatheringModel {
         joinedPublicUsers: joinedPublicGatheringInvitees,
         maxPublicParticipants: map['maxPublicParticipants'] ?? 0,
         publicJoinCount: map['publicJoinCount'] ?? 0,
-        photoRef: map['photoRef'] ?? '');
+        photoRef: map['photoRef'] ?? '',
+        placeId: map['placeId'] ?? '',
+        circleId: map['circleId'] ?? '');
   }
 }

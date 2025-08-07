@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:connecto/feature/gatherings/models/gathering_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,19 +41,22 @@ class CreateGatheringNotifier extends StateNotifier<CreateGatheringState> {
   CreateGatheringNotifier(this.firestore, this.auth)
       : super(const CreateGatheringState());
 
-  Future<void> createGathering(
-      {required String gatheringName,
-      required String eventType,
-      required DateTime dateTime,
-      required String recurrenceType,
-      required bool isRecurring,
-      required Map<String, dynamic> location,
-      required List<Map<String, String>> inviteesWithNames,
-      required String hostName,
-      List<Map<String, String>> allContacts = const [], // optional
-      bool isPublic = false, // new
-      int maxPublicParticipants = 0, // new
-      required String photoRef}) async {
+  Future<void> createGathering({
+    required String gatheringName,
+    required String eventType,
+    required DateTime dateTime,
+    required String recurrenceType,
+    required bool isRecurring,
+    required Map<String, dynamic> location,
+    required List<Map<String, String>> inviteesWithNames,
+    required String hostName,
+    List<Map<String, String>> allContacts = const [], // optional
+    bool isPublic = false, // new
+    int maxPublicParticipants = 0, // new
+    required String photoRef,
+    required String placeId,
+    String? circleId,
+  }) async {
     state = state.copyWith(status: CreateGatheringStatus.loading);
 
     try {
@@ -120,7 +124,7 @@ class CreateGatheringNotifier extends StateNotifier<CreateGatheringState> {
         hostId: {
           "status": "accepted",
           "host": true,
-          "phoneNumber":hostPhoneNumber??'',
+          "phoneNumber": hostPhoneNumber ?? '',
           "name": hostName,
           "respondedAt": Timestamp.now(),
         },
@@ -152,7 +156,9 @@ class CreateGatheringNotifier extends StateNotifier<CreateGatheringState> {
         "maxPublicParticipants": maxPublicParticipants,
         "publicJoinCount": 0,
         "joinedPublicUsers": {}, // initially empty
-        "photoRef": photoRef
+        "photoRef": photoRef,
+        "placeId": placeId,
+        if (circleId != null) "circleId": circleId, // ✅ Only added if not null
       });
 
       final gatheringId = gatheringDoc.id;
@@ -215,6 +221,10 @@ class CreateGatheringNotifier extends StateNotifier<CreateGatheringState> {
         }, SetOptions(merge: true));
       }
 
+      if (circleId != null && circleId.isNotEmpty) {
+        await sendEventMessageToGroup(gatheringId, hostName, circleId);
+      }
+
       triggerSendGatheringNotification(gatheringId);
 
       state = state.copyWith(status: CreateGatheringStatus.success);
@@ -224,6 +234,48 @@ class CreateGatheringNotifier extends StateNotifier<CreateGatheringState> {
         errorMessage: e.toString(),
       );
     }
+  }
+
+  Future<void> sendEventMessageToGroup(
+      String gatheringId, String senderName, String circleId) async {
+    final firestore = FirebaseFirestore.instance;
+    final user = FirebaseAuth.instance.currentUser!;
+
+    final gatheringDoc =
+        await firestore.collection('gatherings').doc(gatheringId).get();
+    if (!gatheringDoc.exists) return;
+
+    final gathering = GatheringModel.fromDoc(gatheringDoc);
+
+    final messageRef = firestore
+        .collection('groupChats')
+        .doc(circleId)
+        .collection('messages')
+        .doc();
+
+    await messageRef.set({
+      'messageId': messageRef.id,
+      'senderId': user.uid,
+      'senderName': senderName,
+      'timestamp': FieldValue.serverTimestamp(),
+
+      // 👇 Event-related fields
+      'type': 'event',
+      'eventId': gatheringId,
+      'eventName': gathering.name,
+      'eventType': gathering.eventType,
+      'eventDateTime': gathering.dateTime,
+      'eventLocation': gathering.location.name,
+    });
+
+    // Optional: Update lastMessage
+    await firestore.collection('groupChats').doc(circleId).update({
+      'lastMessage': {
+        'text': '$senderName created an event 🎉',
+        'timestamp': FieldValue.serverTimestamp(),
+        'senderId': user.uid,
+      }
+    });
   }
 
   Future<void> triggerSendGatheringNotification(String gatheringId) async {

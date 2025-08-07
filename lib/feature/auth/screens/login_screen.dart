@@ -4,7 +4,10 @@ import 'package:connecto/common_widgets/continue_button.dart';
 import 'package:connecto/common_widgets/continue_button_with_loading.dart';
 import 'package:connecto/feature/auth/controller/auth_provider.dart';
 import 'package:connecto/feature/auth/screens/login_success.dart';
+import 'package:connecto/feature/auth/widgets/country_selection_sheet.dart';
 import 'package:connecto/my_app.dart';
+import 'package:country_picker/country_picker.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +32,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool isPhoneValid = false;
   int countryPhoneLength = 10;
   String countryPhoneCode = '91';
+  Country? selectedCountry;
 
   // void _validatePhoneNumber(String? number, bool isValid) {
   //   setState(() {
@@ -59,6 +63,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       log('otp controller.text = ${otpController.text}');
       authNotifier.verifyOTP(otpController.text, ref);
     }
+  }
+
+  void _setDefaultCountryFromLocale(BuildContext context) {
+    if (selectedCountry == null) {
+      final locale = PlatformDispatcher.instance.locale;
+      final countryCode = locale.countryCode; // e.g., 'AE'
+
+      log('local country code : $countryCode');
+
+      if (countryCode != null) {
+        final country = CountryService().getAll().firstWhere(
+              (c) => c.countryCode.toUpperCase() == countryCode.toUpperCase(),
+              orElse: () => Country(
+                phoneCode: '91',
+                countryCode: 'IN',
+                e164Sc: 0,
+                geographic: true,
+                level: 1,
+                name: 'India',
+                example: '9876543210',
+                displayName: 'India',
+                displayNameNoCountryCode: 'India',
+                e164Key: '',
+              ),
+            );
+
+        setState(() {
+          selectedCountry = country;
+        });
+      }
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _setDefaultCountryFromLocale(context);
   }
 
   @override
@@ -151,44 +192,148 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 fontWeight: FontWeight.w400,
                 color: Colors.grey[400])),
         SizedBox(height: 30),
-        IntlPhoneField(
-          controller: phoneController,
-          disableLengthCheck: true,
-          keyboardType: TextInputType.none,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: Color(0xFF091F1E),
-            labelText: 'Phone Number',
-            floatingLabelBehavior: FloatingLabelBehavior.never,
-            labelStyle: TextStyle(
-                color: Colors.white70,
-                fontSize: 16,
-                fontWeight: FontWeight.w400),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white24, width: 1.5),
+        // IntlPhoneField(
+        //   controller: phoneController,
+        //   disableLengthCheck: true,
+        //   keyboardType: TextInputType.none,
+        //   decoration: InputDecoration(
+        //     filled: true,
+        //     fillColor: Color(0xFF091F1E),
+        //     labelText: 'Phone Number',
+        //     floatingLabelBehavior: FloatingLabelBehavior.never,
+        //     labelStyle: TextStyle(
+        //         color: Colors.white70,
+        //         fontSize: 16,
+        //         fontWeight: FontWeight.w400),
+        //     enabledBorder: OutlineInputBorder(
+        //       borderRadius: BorderRadius.circular(12),
+        //       borderSide: BorderSide(color: Colors.white24, width: 1.5),
+        //     ),
+        //     focusedBorder: OutlineInputBorder(
+        //       borderRadius: BorderRadius.circular(12),
+        //       borderSide: BorderSide(color: Color(0xFF03FFE2), width: 2),
+        //     ),
+        //     contentPadding: EdgeInsets.symmetric(vertical: 13, horizontal: 16),
+        //   ),
+        //   initialCountryCode: 'IN',
+        //   // onChanged: (phone) {
+        //   //   _validatePhoneNumber(phone.completeNumber, phone.isValidNumber());
+        //   // },
+        //   onCountryChanged: (value) {
+        //     setState(() {
+        //       countryPhoneLength = value.minLength;
+        //       countryPhoneCode = value.dialCode;
+        //     });
+        //     log('country phone length : $countryPhoneLength');
+        //     log('country phone code : $countryPhoneCode');
+        //   },
+        // ),
+
+        /// Input row
+        Row(
+          children: [
+            // Country Picker Box
+            GestureDetector(
+              onTap: () async {
+                final selected = await showModalBottomSheet<Country>(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => Padding(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom,
+                    ),
+                    child: CountrySelectorSheet(
+                      selected: selectedCountry,
+                    ),
+                  ),
+                );
+
+                if (selected != null) {
+                  setState(() {
+                    selectedCountry = selected;
+                    countryPhoneLength = selected.example.length;
+                    countryPhoneCode = selected.phoneCode;
+                  });
+                }
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Color(0xFF091F1E),
+                  border: Border.all(color: Color(0xff0E3735)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      selectedCountry?.flagEmoji ?? '',
+                      style: TextStyle(fontSize: 18),
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      selectedCountry != null
+                          ? '+${selectedCountry!.phoneCode}'
+                          : 'Code',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_drop_down),
+                  ],
+                ),
+              ),
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Color(0xFF03FFE2), width: 2),
+            SizedBox(width: 12),
+            // Phone Number Input
+            Expanded(
+              child: TextField(
+                controller: phoneController,
+                keyboardType: TextInputType.none,
+                decoration: InputDecoration(
+                    labelStyle: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          BorderSide(color: Color(0xff0E3735), width: 1.5),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          BorderSide(color: Color(0xFF03FFE2), width: 2),
+                    ),
+                    contentPadding:
+                        EdgeInsets.symmetric(vertical: 13, horizontal: 16),
+                    hintText: selectedCountry!.example,
+                    hintStyle: TextStyle(color: Colors.grey[600])),
+              ),
             ),
-            contentPadding: EdgeInsets.symmetric(vertical: 13, horizontal: 16),
-          ),
-          initialCountryCode: 'IN',
-          // onChanged: (phone) {
-          //   _validatePhoneNumber(phone.completeNumber, phone.isValidNumber());
-          // },
-          onCountryChanged: (value) {
-            setState(() {
-              countryPhoneLength = value.minLength;
-              countryPhoneCode = value.dialCode;
-            });
-            log('country phone length : $countryPhoneLength');
-            log('country phone code : $countryPhoneCode');
-          },
+          ],
         ),
+
+        // TextButton(
+        //     onPressed: () async {
+        //       final selected = await showModalBottomSheet<Country>(
+        //         context: context,
+        //         isScrollControlled: true,
+        //         builder: (_) => CountrySelectorSheet(
+        //           selected: selectedCountry,
+        //         ),
+        //       );
+
+        //       if (selected != null) {
+        //         log('selected country : ${selected.example}');
+        //         setState(() {
+        //           selectedCountry = selected;
+        //           countryPhoneLength = selected.example.length;
+        //           countryPhoneCode = selected.phoneCode;
+        //         });
+        //       }
+        //     },
+        //     child: Text('Open')),
         // Spacer(),
-        SizedBox(height: 20),
+        SizedBox(height: 30),
         ContinueButtonWithLoading(
           isLoading: authState == AuthState.sendingOtp,
           onPressed:

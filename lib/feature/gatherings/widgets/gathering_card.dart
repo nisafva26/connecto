@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connecto/feature/gatherings/models/gathering_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bounceable/flutter_bounceable.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -40,7 +41,7 @@ class GatheringCard extends StatelessWidget {
       padding: const EdgeInsets.only(top: 12, bottom: 0),
       child: Card(
         elevation: 0,
-        child: InkWell(
+        child: Bounceable(
           onTap: () {
             context.push('/gathering/gathering-details/${gathering.id}',
                 extra: gathering);

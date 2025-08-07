@@ -366,7 +366,7 @@ class PingChatScreen extends ConsumerWidget {
 
                         return GestureDetector(
                           onTap: () {
-                            context.go(
+                            context.push(
                                 '/gathering/gathering-details/${gathering.id}',
                                 extra: gathering);
                           },

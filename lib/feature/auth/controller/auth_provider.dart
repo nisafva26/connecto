@@ -1,11 +1,18 @@
 import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connecto/feature/auth/controller/user_details_notifier.dart';
 import 'package:connecto/feature/auth/screens/login_screen.dart';
+import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
+import 'package:connecto/feature/gatherings/providers/chat_gathering_provider.dart';
+import 'package:connecto/feature/gatherings/screens/gathering_list.dart';
+import 'package:connecto/feature/pings/screens/ping_chat_screen.dart';
 import 'package:connecto/my_app.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 enum AuthState {
   idle,
@@ -67,7 +74,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // ✅ Ensure `justLoggedInProvider` is updated
       ref.read(justLoggedInProvider.notifier).state = true;
       log('justLoggedInProvider set to: ${ref.read(justLoggedInProvider)}');
-      
 
       state = AuthState.authenticated; // Move to success screen
     } catch (e) {
@@ -76,38 +82,50 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> logout(WidgetRef ref) async {
-  try {
-    final uid = _auth.currentUser?.uid;
+  Future<void> logout(WidgetRef ref,BuildContext context) async {
+    try {
+      final uid = _auth.currentUser?.uid;
 
-    // ❌ Optional: Remove FCM token from Firestore
-    // if (uid != null) {
-    //   await _firestore.collection('users').doc(uid).update({
-    //     'fcmToken': FieldValue.delete(),
-    //   });
-    // }
+      // ❌ Optional: Remove FCM token from Firestore
+      // if (uid != null) {
+      //   await _firestore.collection('users').doc(uid).update({
+      //     'fcmToken': FieldValue.delete(),
+      //   });
+      // }
 
-    // ✅ Sign out from Firebase
-    await _auth.signOut();
+      // ✅ Sign out from Firebase
+      await _auth.signOut();
+      context.go('/');
 
-    // ✅ Invalidate providers or user-specific streams
-    // ref.invalidate(currentUserProvider);
-    // ref.invalidate(userDataProvider);
-    // ref.invalidate(gatheringListProvider);
-    // ref.invalidate(chatListProvider);
-    // Add any others you use...
+      await Future.delayed(const Duration(milliseconds: 300));
 
-    // ✅ Reset state
-    state = AuthState.idle;
+      ref.invalidate(pendingGatheringsProvider);
+      ref.invalidate(upcomingGatheringsProvider);
+      ref.invalidate(previousGatheringsProvider);
+      // ref.invalidate(publicGatheringsProvider);
+      ref.invalidate(userDetailsProvider);
+      ref.invalidate(userDataProvider);
+      ref.invalidate(userDataProvider);
+      ref.invalidate(messagesProvider);
+      ref.invalidate(chatGatheringsProvider);
+      ref.invalidate(chatFlagsProvider);
+      ref.invalidate(friendsProvider);
 
-    log("✅ Logout successful.");
-  } catch (e) {
-    log("❌ Logout failed: $e");
+      // ✅ Invalidate providers or user-specific streams
+      // ref.invalidate(currentUserProvider);
+      // ref.invalidate(userDataProvider);
+      // ref.invalidate(gatheringListProvider);
+
+      // Add any others you use...
+
+      // ✅ Reset state
+      state = AuthState.idle;
+
+      log("✅ Logout successful.");
+    } catch (e) {
+      log("❌ Logout failed: $e");
+    }
   }
-}
-
-
-
 }
 
 // Riverpod Provider for AuthNotifier

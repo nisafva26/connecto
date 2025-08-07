@@ -9,16 +9,19 @@ import 'package:connecto/feature/gatherings/data/acitivity_data.dart';
 import 'package:connecto/feature/gatherings/providers/gathering_provider.dart';
 import 'package:connecto/feature/gatherings/screens/select_location_screen.dart';
 import 'package:connecto/feature/gatherings/widgets/gathering_invitee_bottom_modal.dart';
+import 'package:connecto/feature/gatherings/widgets/success_bottom_sheet.dart';
 import 'package:connecto/helper/color_helper.dart';
 import 'package:connecto/helper/date_helper.dart' as date;
 import 'package:connecto/helper/get_initials.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_google_maps_webservices/places.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:go_router/go_router.dart';
 import 'package:loading_indicator/loading_indicator.dart';
 
 class CreateGatheringCircleScreen extends ConsumerStatefulWidget {
@@ -26,12 +29,15 @@ class CreateGatheringCircleScreen extends ConsumerStatefulWidget {
   final String? initialActivity;
   final List<UserModel>? registeredUsers;
   final List<Map<String, String>>? unregisteredUsers;
-  CreateGatheringCircleScreen({
-    this.place,
-    this.initialActivity,
-    this.registeredUsers,
-    this.unregisteredUsers,
-  });
+  final bool shouldPop;
+  final String? circleId;
+  CreateGatheringCircleScreen(
+      {this.place,
+      this.initialActivity,
+      this.registeredUsers,
+      this.unregisteredUsers,
+      this.shouldPop = true,
+      this.circleId});
   @override
   _CreateGatheringCircleScreenState createState() =>
       _CreateGatheringCircleScreenState();
@@ -57,28 +63,39 @@ class _CreateGatheringCircleScreenState
   List<CircleModel> selectedCircles = [];
 
   String? selectedPhotoRef = '';
-
+  String? placeId = '';
   final List<Map<String, dynamic>> activities = activityList;
 
   String? selectedActivity;
 
   void _openLocationSelector() async {
-    final result = await showModalBottomSheet<PlacesSearchResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => AddLocationScreen(
-          eventType: selectedActivity == "Other"
-              ? activityTypeController.text
-              : selectedActivity ?? ''),
-    );
+    // final result = await showModalBottomSheet<PlacesSearchResult>(
+    //   context: context,
+    //   isScrollControlled: true,
+    //   backgroundColor: Colors.transparent,
+    //   builder: (context) => AddLocationScreen(
+    //       eventType: selectedActivity == "Other"
+    //           ? activityTypeController.text
+    //           : selectedActivity ?? ''),
+    // );
 
+    // if (result != null) {
+    //   final photoRef = result.photos.first.photoReference;
+
+    //   setState(() {
+    //     selectedPlace = result;
+    //     selectedPhotoRef = photoRef;
+    //   });
+    // }
+
+    final result = await context.push<PlacesSearchResult>(
+        '/gathering/select-location',
+        extra: selectedActivity ?? '');
     if (result != null) {
-      final photoRef = result.photos.first.photoReference;
-
       setState(() {
         selectedPlace = result;
-        selectedPhotoRef = photoRef;
+        selectedPhotoRef = result.photos.first.photoReference;
+        placeId = result.placeId;
       });
     }
   }
@@ -154,6 +171,10 @@ class _CreateGatheringCircleScreenState
     super.initState();
     selectedPlace = widget.place; // ✅ assign place to selectedPlace
     selectedActivity = widget.initialActivity;
+    if (widget.place != null) {
+      selectedPhotoRef = widget.place!.photos.first.photoReference;
+      placeId = widget.place!.placeId;
+    }
 
     if (widget.registeredUsers != null) {
       selectedFriends = widget.registeredUsers!
@@ -178,8 +199,25 @@ class _CreateGatheringCircleScreenState
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (gatheringState.status == CreateGatheringStatus.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("🎉 Gathering created!")),
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(content: Text("🎉 Gathering created!")),
+        // );
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => PremiumSuccessBottomSheet(
+            onDone: () {
+              log('inside success..');
+              if (widget.shouldPop) {
+                log('popping');
+                Navigator.pop(context);
+              } else {
+                log('going to discover instead of popping');
+                context.go('/discover');
+              }
+            },
+          ),
         );
 
         // context.pop(); // Pop after success
@@ -196,6 +234,18 @@ class _CreateGatheringCircleScreenState
             .read(createGatheringProvider.notifier)
             .reset(); // Optional: reset error
       }
+      // else if (gatheringState.status == CreateGatheringStatus.idle) {
+      //   showModalBottomSheet(
+      //     context: context,
+      //     isScrollControlled: true,
+      //     backgroundColor: Colors.transparent,
+      //     builder: (_) => PremiumSuccessBottomSheet(
+      //       onDone: () {
+      //         Navigator.pop(context);
+      //       },
+      //     ),
+      //   );
+      // }
     });
 
     void openInviteModal() async {
@@ -307,7 +357,12 @@ class _CreateGatheringCircleScreenState
                           ),
                         ],
                       ),
-                    ),
+                    )
+                        .animate()
+                        .fadeIn(duration: 300.ms)
+                        // .scale(begin: 0.95, end: 1.0)
+                        .scaleXY(begin: 0.95, end: 1.0)
+                        .then(delay: Duration(milliseconds: index * 100)),
                   );
                 },
               ),
@@ -510,11 +565,11 @@ class _CreateGatheringCircleScreenState
               SizedBox(height: 24),
 
               Container(
-                 decoration: BoxDecoration(
-                    color: Color(0xff091F1E),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: Color(0xff091F1E),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: EdgeInsets.symmetric(vertical: 8),
                 child: SwitchListTile(
                   value: isPublic,
                   onChanged: (val) {
@@ -663,18 +718,21 @@ class _CreateGatheringCircleScreenState
                     await ref
                         .read(createGatheringProvider.notifier)
                         .createGathering(
-                            gatheringName: name,
-                            eventType: eventType,
-                            dateTime: date,
-                            isRecurring: isRecurring,
-                            recurrenceType: recurrenceType,
-                            location: location,
-                            inviteesWithNames: allInvitees,
-                            hostName: currentUser!.fullName,
-                            allContacts: normalizedContacts,
-                            isPublic: isPublic,
-                            maxPublicParticipants: maxPublicParticipants,
-                            photoRef: selectedPhotoRef!);
+                          gatheringName: name,
+                          eventType: eventType,
+                          dateTime: date,
+                          isRecurring: isRecurring,
+                          recurrenceType: recurrenceType,
+                          location: location,
+                          inviteesWithNames: allInvitees,
+                          hostName: currentUser!.fullName,
+                          allContacts: normalizedContacts,
+                          isPublic: isPublic,
+                          maxPublicParticipants: maxPublicParticipants,
+                          photoRef: selectedPhotoRef!,
+                          placeId: placeId!,
+                          circleId: widget.circleId,
+                        );
 
                     // updateChatFlagForGathering(friendId: widget.friendID);
                     final allInviteeIds =
@@ -683,7 +741,7 @@ class _CreateGatheringCircleScreenState
                     await updateChatFlagsForGathering(
                         inviteeIds: allInviteeIds);
 
-                    Navigator.pop(context);
+                    // Navigator.pop(context);
                   } catch (e) {
                     log('Error: $e');
                     ScaffoldMessenger.of(context).showSnackBar(

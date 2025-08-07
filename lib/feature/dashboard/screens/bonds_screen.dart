@@ -6,6 +6,7 @@ import 'package:connecto/feature/circles/screens/circle_list_screen.dart';
 import 'package:connecto/feature/dashboard/widgets/common_appbar.dart';
 import 'package:connecto/feature/dashboard/widgets/contacts_model.dart';
 import 'package:connecto/helper/get_initials.dart';
+import 'package:connecto/my_app.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,7 +19,8 @@ String formatDate(DateTime date) {
 
 // ✅ Friends Provider
 final friendsProvider = StreamProvider.autoDispose<List<UserModel>>((ref) {
-  final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+  final user = ref.watch(authStateProvider).value;
+  final currentUserId = user?.uid;
   if (currentUserId == null) return Stream.value([]);
 
   return FirebaseFirestore.instance
@@ -44,7 +46,9 @@ final friendsProvider = StreamProvider.autoDispose<List<UserModel>>((ref) {
 });
 
 final currentUserProvider = StreamProvider.autoDispose<UserModel?>((ref) {
-  final userId = FirebaseAuth.instance.currentUser?.uid;
+  // final userId = FirebaseAuth.instance.currentUser?.uid;
+  final user = ref.watch(authStateProvider).value;
+  final userId = user?.uid;
   if (userId == null) return Stream.value(null);
 
   return FirebaseFirestore.instance
@@ -57,13 +61,36 @@ final currentUserProvider = StreamProvider.autoDispose<UserModel?>((ref) {
   });
 });
 
+// final chatFlagsProvider =
+//     StreamProvider.autoDispose<Map<String, dynamic>>((ref) {
+//   final uid = FirebaseAuth.instance.currentUser!.uid;
+
+//   final collection = FirebaseFirestore.instance
+//       .collection('users')
+//       .doc(uid)
+//       .collection('chatFlags');
+
+//   return collection.snapshots().map((snapshot) {
+//     final Map<String, dynamic> flags = {};
+//     for (final doc in snapshot.docs) {
+//       flags[doc.id] = doc.data(); // doc.id is friendId
+//     }
+//     return flags;
+//   });
+// });
+
 final chatFlagsProvider =
     StreamProvider.autoDispose<Map<String, dynamic>>((ref) {
-  final uid = FirebaseAuth.instance.currentUser!.uid;
+  final user = ref.watch(authStateProvider).value;
+
+  if (user == null) {
+    // User logged out — return empty map
+    return Stream.value({});
+  }
 
   final collection = FirebaseFirestore.instance
       .collection('users')
-      .doc(uid)
+      .doc(user.uid)
       .collection('chatFlags');
 
   return collection.snapshots().map((snapshot) {
@@ -74,6 +101,9 @@ final chatFlagsProvider =
     return flags;
   });
 });
+
+
+
 
 class BondScreen extends ConsumerStatefulWidget {
   final int initialTabIndex;

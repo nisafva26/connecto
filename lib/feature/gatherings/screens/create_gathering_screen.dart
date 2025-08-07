@@ -1,17 +1,20 @@
 import 'dart:developer';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connecto/feature/auth/model/user_model.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
 import 'package:connecto/feature/gatherings/providers/chat_gathering_provider.dart';
 import 'package:connecto/feature/gatherings/providers/gathering_provider.dart';
 import 'package:connecto/feature/gatherings/screens/select_location_screen.dart';
+import 'package:connecto/feature/gatherings/widgets/success_bottom_sheet.dart';
 import 'package:connecto/helper/date_helper.dart' as date;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_google_maps_webservices/places.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class CreateGatheringScreen extends ConsumerStatefulWidget {
   final String friendID;
@@ -31,6 +34,7 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
   bool isRecurring = false;
   DateTime? selectedDateTime;
   String? selectedPhotoRef = '';
+  String? placeId = '';
 
   PlacesSearchResult? selectedPlace;
 
@@ -46,21 +50,32 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
   String? selectedActivity;
 
   void _openLocationSelector() async {
-    final result = await showModalBottomSheet<PlacesSearchResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => AddLocationScreen(
-          eventType: selectedActivity == "Other"
-              ? activityTypeController.text
-              : selectedActivity ?? ''),
-    );
+    // final result = await showModalBottomSheet<PlacesSearchResult>(
+    //   context: context,
+    //   isScrollControlled: true,
+    //   backgroundColor: Colors.transparent,
+    //   builder: (context) => AddLocationScreen(
+    //       eventType: selectedActivity == "Other"
+    //           ? activityTypeController.text
+    //           : selectedActivity ?? ''),
+    // );
 
+    // if (result != null) {
+    //   final photoRef = result.photos.first.photoReference;
+    //   setState(() {
+    //     selectedPlace = result;
+    //     selectedPhotoRef = photoRef;
+    //   });
+    // }
+
+    final result = await context.push<PlacesSearchResult>(
+        '/gathering/select-location',
+        extra: selectedActivity ?? '');
     if (result != null) {
-      final photoRef = result.photos.first.photoReference;
       setState(() {
         selectedPlace = result;
-        selectedPhotoRef = photoRef;
+        selectedPhotoRef = result.photos.first.photoReference;
+        placeId = result.placeId;
       });
     }
   }
@@ -129,8 +144,18 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (gatheringState.status == CreateGatheringStatus.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("🎉 Gathering created!")),
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(content: Text("🎉 Gathering created!")),
+        // );
+          showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => PremiumSuccessBottomSheet(
+            onDone: () {
+              Navigator.pop(context);
+            },
+          ),
         );
 
         // context.pop(); // Pop after success
@@ -294,45 +319,69 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
                             )
                           ],
                         )
-                      : Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      : Column(
                           children: [
-                            Icon(Icons.location_on, color: Colors.white),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    selectedPlace?.name ?? "Add location",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontFamily: 'Inter',
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    height: 6,
-                                  ),
-                                  if (selectedPlace?.formattedAddress != null)
-                                    Text(
-                                      selectedPlace!.formattedAddress!,
-                                      style: TextStyle(
-                                        color: Color(0xFFC4C4C4),
-                                        fontSize: 13,
-                                        fontFamily: 'Inter',
-                                        fontWeight: FontWeight.w400,
-                                        letterSpacing: -0.32,
-                                      ),
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                ],
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: CachedNetworkImage(
+                                height: 160,
+                                fit: BoxFit.cover,
+                                width: MediaQuery.sizeOf(context).width,
+                                imageUrl:
+                                    'https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${selectedPlace!.photos[0].photoReference}&key=$googleApiKey',
+                                placeholder: (context, url) =>
+                                    Center(child: CircularProgressIndicator()),
+                                errorWidget: (context, url, error) =>
+                                    Icon(Icons.error),
                               ),
                             ),
-                            Icon(Icons.edit,
-                                color: Theme.of(context).colorScheme.primary)
+                            SizedBox(
+                              height: 24,
+                            ),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.location_on, color: Colors.white),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        selectedPlace?.name ?? "Add location",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontFamily: 'Inter',
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        height: 6,
+                                      ),
+                                      if (selectedPlace?.formattedAddress !=
+                                          null)
+                                        Text(
+                                          selectedPlace!.formattedAddress!,
+                                          style: TextStyle(
+                                            color: Color(0xFFC4C4C4),
+                                            fontSize: 13,
+                                            fontFamily: 'Inter',
+                                            fontWeight: FontWeight.w400,
+                                            letterSpacing: -0.32,
+                                          ),
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(Icons.edit,
+                                    color:
+                                        Theme.of(context).colorScheme.primary)
+                              ],
+                            ),
                           ],
                         ),
                 ),
@@ -408,11 +457,13 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
                             location: location,
                             inviteesWithNames: invitees,
                             hostName: currentUser!.fullName,
-                            photoRef: selectedPhotoRef!);
+                            photoRef: selectedPhotoRef!,
+                            placeId: placeId!
+                            );
 
                     updateChatFlagForGathering(friendId: widget.friendID);
 
-                    Navigator.pop(context);
+                    // Navigator.pop(context);
                   } catch (e) {
                     log('Error: $e');
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -427,7 +478,7 @@ class _CreateGatheringScreenState extends ConsumerState<CreateGatheringScreen> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),
-                child: gatheringState == CreateGatheringStatus.loading
+                child: gatheringState.status == CreateGatheringStatus.loading
                     ? CircularProgressIndicator(
                         color: Colors.white,
                       )

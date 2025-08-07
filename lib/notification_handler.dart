@@ -145,6 +145,8 @@ class NotificationHandler {
       //   'bond',
       //   extra: 1,
       // );
+    } else if (route == 'accessRequest') {
+      GoRouter.of(navigatorKey.currentContext!).go('/profile/admin-access-requests');
     }
 
     // Add more route handling logic here as needed

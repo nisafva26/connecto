@@ -1,7 +1,11 @@
 import 'dart:developer';
+import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connecto/common_widgets/continue_button.dart';
 import 'package:connecto/feature/auth/controller/auth_provider.dart';
+import 'package:connecto/feature/auth/model/user_model.dart';
+import 'package:connecto/feature/dashboard/screens/access_request_admin.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
 import 'package:connecto/feature/discover/screens/discover_screen.dart';
 import 'package:connecto/feature/gatherings/screens/gathering_list.dart';
@@ -10,6 +14,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 class MainScreen extends StatefulWidget {
   final Widget child;
@@ -159,26 +164,239 @@ class RankScreen extends StatelessWidget {
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
+  final Set<String> adminPhones = const {
+    '+971559533272',
+    '+916282745946',
+  };
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    void logout(BuildContext context) async {
-      log('inside logout feature');
-      //  await MyAppProviders.invalidateAllProviders(ref);
-      // await FirebaseAuth.instance.signOut();
-
-      ref.read(authProvider.notifier).logout(ref);
-    }
+    final userAsync = ref.watch(currentUserProvider);
+    final accessRequestsAsync = ref.watch(adminNotificationsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text('ProfileScreen')),
-      body: Center(
-        child: IconButton(
-          icon: Icon(
-            Icons.logout,
-            color: Colors.white,
-          ),
-          onPressed: () => logout(context),
-        ),
+      appBar: AppBar(
+        title: const Text('Profile'),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: userAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+        data: (user) {
+          if (user == null) return const Center(child: Text('User not found'));
+          final isAdmin = adminPhones.contains(user.phoneNumber);
+          log('is admin : $isAdmin');
+
+          final initials = user.fullName
+              .split(' ')
+              .map((e) => e.isNotEmpty ? e[0] : '')
+              .take(2)
+              .join()
+              .toUpperCase();
+
+          return Padding(
+            padding: const EdgeInsets.all(20.0).copyWith(top: 50, bottom: 50),
+            child: Column(
+              children: [
+                // Neon Glow Avatar
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.6),
+                        blurRadius: 25,
+                        spreadRadius: 3,
+                      ),
+                    ],
+                  ),
+                  child: CircleAvatar(
+                    radius: 48,
+                    backgroundColor: Theme.of(context).colorScheme.tertiary,
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Full Name
+                Text(
+                  user.fullName,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // Gender label
+                Text(
+                  user.gender,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white70,
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+
+                // Info Tiles
+                _buildInfoTile(
+                  context,
+                  icon: Icons.phone,
+                  label: 'Phone',
+                  value: user.phoneNumber,
+                ),
+                const SizedBox(height: 12),
+                _buildInfoTile(
+                  context,
+                  icon: Icons.group,
+                  label: 'Friends',
+                  value: '${user.friends.length} friends',
+                ),
+
+                const SizedBox(height: 12),
+                if (isAdmin) ...[
+                  // const SizedBox(height: 30),
+                  GestureDetector(
+                    onTap: () {
+                      context.go(
+                          '/profile/admin-access-requests'); // Route to detailed screen
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 0, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.tertiary,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: ListTile(
+                        leading: const Icon(Icons.verified_user,
+                            color: Color(0xFF03FFE2)),
+                        title: const Text("User Access Requests",
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: accessRequestsAsync.when(
+                          data: (requests) => Text(
+                            "${requests.length} pending request's",
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                          loading: () => const Text("Loading...",
+                              style: TextStyle(color: Colors.grey)),
+                          error: (e, _) {
+                            log('error : $e');
+                            return Text("Error ",
+                                style: TextStyle(color: Colors.red));
+                          },
+                        ),
+                        
+                        trailing: const Icon(Icons.arrow_forward_ios,
+                            color: Colors.white38),
+                      ),
+                    ),
+                  ),
+                ],
+
+                // Edit Profile (optional)
+                // OutlinedButton.icon(
+                //   onPressed: () {}, // future use
+                //   icon: const Icon(Icons.edit, size: 20),
+                //   label: const Text('Edit Profile'),
+                //   style: OutlinedButton.styleFrom(
+                //     foregroundColor: Theme.of(context).colorScheme.primary,
+                //     side: BorderSide(
+                //         color: Theme.of(context).colorScheme.primary),
+                //     padding: const EdgeInsets.symmetric(
+                //         horizontal: 20, vertical: 14),
+                //     shape: RoundedRectangleBorder(
+                //         borderRadius: BorderRadius.circular(12)),
+                //   ),
+                // ),
+
+                const SizedBox(height: 20),
+
+                // // Logout Button
+                // ElevatedButton.icon(
+                //   onPressed: () => ref.read(authProvider.notifier).logout(ref),
+                //   icon: const Icon(Icons.logout),
+                //   label: const Text('Logout'),
+                //   style: ElevatedButton.styleFrom(
+                //     backgroundColor: Colors.redAccent,
+                //     foregroundColor: Colors.white,
+                //     padding: const EdgeInsets.symmetric(
+                //         horizontal: 28, vertical: 14),
+                //     shape: RoundedRectangleBorder(
+                //         borderRadius: BorderRadius.circular(14)),
+                //   ),
+                // ),
+                Spacer(),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () =>
+                        ref.read(authProvider.notifier).logout(ref, context),
+                    icon: const Icon(Icons.logout, color: Colors.black),
+                    label: const Text(
+                      'Logout',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xff03FFE2),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildInfoTile(BuildContext context,
+      {required IconData icon, required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.tertiary,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: const TextStyle(fontSize: 12, color: Colors.white54)),
+              const SizedBox(height: 4),
+              Text(value,
+                  style: const TextStyle(fontSize: 15, color: Colors.white)),
+            ],
+          )
+        ],
       ),
     );
   }

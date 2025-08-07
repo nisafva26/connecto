@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:connecto/feature/discover/screens/select_location_discover.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_google_maps_webservices/places.dart';
@@ -35,7 +36,7 @@ class MinimalMapCard extends StatelessWidget {
       child: Container(
         width: 320,
         height: 150,
-        margin: const EdgeInsets.symmetric(horizontal: 12),
+        margin: const EdgeInsets.symmetric(horizontal: 12).copyWith(right: 0),
         padding: const EdgeInsets.all(16),
         decoration: ShapeDecoration(
           color: const Color(0xFF091F1E),
@@ -105,21 +106,25 @@ class MinimalMapCard extends StatelessWidget {
             const SizedBox(width: 12),
 
             // Image with heart icon
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: place.photos.isNotEmpty
-                  ? Image.network(
-                      "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photos.first.photoReference}&key=$googleApiKey",
-                      height: 200,
-                      width: 100,
-                      fit: BoxFit.cover,
-                    )
-                  : Container(
-                      height: 80,
-                      width: 80,
-                      color: Colors.grey.shade300,
-                      child: const Icon(Icons.image_not_supported),
-                    ),
+            Hero(
+              tag: place.placeId,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: place.photos.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl:
+                            "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photos.first.photoReference}&key=$googleApiKey",
+                        height: 200,
+                        width: 100,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        height: 80,
+                        width: 80,
+                        color: Colors.grey.shade300,
+                        child: const Icon(Icons.image_not_supported),
+                      ),
+              ),
             ),
           ],
         ),

@@ -1,7 +1,9 @@
 import 'dart:developer';
 
+import 'package:connecto/feature/dashboard/widgets/missing_code_modal.dart';
 import 'package:connecto/helper/get_initials.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -88,17 +90,66 @@ class _AddFriendModalState extends State<AddFriendModal> {
   }
 
   /// Add friend logic (modify as needed)
-  void _addFriend() {
+  // void _addFriend() {
+  //   if (selectedPhoneNumber != null) {
+  //     print("✅ Friend added: $selectedPhoneNumber");
+  //     // Navigator.pop(context,selectedPhoneNumber);
+
+  //     Navigator.pop(context);
+  //     context.go(
+  //         '/bond/friend-details/${Uri.encodeComponent(selectedContact!.displayName!)}/${selectedPhoneNumber}');
+  //   } else {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text("Please select a contact")),
+  //     );
+  //   }
+  // }
+
+  void _addFriend() async {
     if (selectedPhoneNumber != null) {
+      if (!selectedPhoneNumber!.trim().startsWith('+')) {
+        HapticFeedback.heavyImpact();
+        // showDialog(
+        //   context: context,
+        //   builder: (context) => AlertDialog(
+        //     backgroundColor: Theme.of(context).colorScheme.tertiary,
+        //     title: const Text(
+        //       "Invalid Number",
+        //       style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        //     ),
+        //     content: const Text(
+        //       "Please include the country code (e.g., +971 or +91) in the phone number.",
+        //       style: TextStyle(color: Colors.white70),
+        //     ),
+        //     actions: [
+        //       TextButton(
+        //         onPressed: () => Navigator.pop(context),
+        //         child: const Text("OK", style: TextStyle(color: Colors.white)),
+        //       ),
+        //     ],
+        //   ),
+        // );
+        final result = await showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => MissingCodeSheet(),
+        );
+        if (result == true) {
+          log("✅ User acknowledged missing code");
+          Navigator.pop(context);
+        }
+        return;
+      }
+
       print("✅ Friend added: $selectedPhoneNumber");
-      // Navigator.pop(context,selectedPhoneNumber);
-     
       Navigator.pop(context);
       context.go(
-          '/bond/friend-details/${Uri.encodeComponent(selectedContact!.displayName!)}/${selectedPhoneNumber}');
+        '/bond/friend-details/${Uri.encodeComponent(selectedContact!.displayName!)}/${selectedPhoneNumber}',
+      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please select a contact")),
+        const SnackBar(content: Text("Please select a contact")),
       );
     }
   }

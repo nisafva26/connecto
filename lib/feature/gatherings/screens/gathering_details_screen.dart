@@ -25,6 +25,7 @@ import 'package:connecto/helper/toast_alert.dart';
 import 'package:connecto/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -63,17 +64,30 @@ class GatheringDetailsScreen extends ConsumerStatefulWidget {
 
 class _GatheringDetailsScreenState
     extends ConsumerState<GatheringDetailsScreen> {
+  double _currentSheetSize = 0.7;
+
+  final DraggableScrollableController draggableController =
+      DraggableScrollableController();
+
+  List<map.PointAnnotation> participantMarkers = [];
   @override
   void initState() {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // await checkPermissions();
+      //  draggableController.animateTo(
+      //   0.6,
+      //   duration: Duration(milliseconds: 500),
+      //   curve: Curves.easeOut,
+      // );
       ref.read(locationManagerProvider).start(widget.gatheringId);
     });
   }
 
   map.PointAnnotationManager? annotationManager;
+  late map.MapboxMap mapboxMap;
+  // final List<map.Point> allPoints = [];
 
   Future<bool> checkPermissions() async {
     LocationPermission permission = await Geolocator.checkPermission();
@@ -246,27 +260,119 @@ class _GatheringDetailsScreenState
   @override
   Widget build(BuildContext context) {
     log('gatherin g id : ${widget.gatheringId}');
+    // Future<void> handlePing(
+    //   BuildContext context,
+    //   WidgetRef ref,
+    //   GatheringModel gathering,
+    // ) async {
+    //   final circleId = 'gathering_circle_${gathering.id}';
+    //   final firestore = FirebaseFirestore.instance;
+
+    //   log('🔍 Checking if circle $circleId already exists...');
+
+    //   // 1. Check if a circle already exists
+    //   final existingCircleDoc =
+    //       await firestore.collection('circles').doc(circleId).get();
+
+    //   if (existingCircleDoc.exists) {
+    //     log('✅ Circle already exists. Navigating to group chat.');
+    //     final circle = await CircleModel.fromFirestore(existingCircleDoc);
+    //     context.push('/bond/group-chat/$circleId', extra: circle);
+    //     return;
+    //   }
+
+    //   final List<String> circleColors = [
+    //     '#FF5A5A',
+    //     '#7748E7',
+    //     '#4EA46B',
+    //     '#475AE7',
+    //     '#FFC453',
+    //     '#AD45E7',
+    //   ];
+    //   final randomColor =
+    //       circleColors[math.Random().nextInt(circleColors.length)];
+
+    //   log('🆕 Circle does not exist. Preparing member list...');
+
+    //   // 2. Prepare member list from invitees
+    //   final members = [
+    //     ...gathering.invitees.values.map((e) => {
+    //           'fullName': e.name,
+    //           'phoneNumber': e.phoneNumber,
+    //         }),
+    //     ...gathering.nonRegisteredInvitees.values.map((e) => {
+    //           'fullName': e.name,
+    //           'phoneNumber': e.phone,
+    //         }),
+    //   ];
+
+    //   log('👥 Members for new circle: ${members.map((e) => e['fullName']).join(', ')}');
+
+    //   // 3. Trigger circle creation
+    //   log('🚀 Creating new circle: $circleId...');
+    //   await ref.read(circleNotifierProvider.notifier).addCircle(
+    //         circleName: gathering.name,
+    //         circleColor: randomColor,
+    //         members: members,
+    //         circleId: circleId,
+    //       );
+
+    //   // 4. Fetch the newly created circle
+    //   final newCircleDoc =
+    //       await firestore.collection('circles').doc(circleId).get();
+
+    //   if (newCircleDoc.exists) {
+    //     final circle = await CircleModel.fromFirestore(newCircleDoc);
+    //     log('✅ Circle created successfully. Navigating to group chat.');
+    //     context.push('/bond/group-chat/$circleId', extra: circle);
+    //   } else {
+    //     log('❌ Failed to fetch the newly created circle. Something went wrong.');
+    //   }
+    // }
+
     Future<void> handlePing(
       BuildContext context,
       WidgetRef ref,
       GatheringModel gathering,
     ) async {
-      final circleId = 'gathering_circle_${gathering.id}';
       final firestore = FirebaseFirestore.instance;
 
-      log('🔍 Checking if circle $circleId already exists...');
+      // ✅ 1. If gathering has a linked circle, just open that group
+      if (gathering.circleId != null && gathering.circleId!.isNotEmpty) {
+        final circleId = gathering.circleId!;
+        log('🔗 Gathering is linked to existing circle: $circleId');
 
-      // 1. Check if a circle already exists
+        final existingCircleDoc =
+            await firestore.collection('circles').doc(circleId).get();
+
+        if (existingCircleDoc.exists) {
+          final circle = await CircleModel.fromFirestore(existingCircleDoc);
+          log('✅ Navigating to existing group chat for $circleId...');
+          context.push('/bond/group-chat/$circleId', extra: circle);
+        } else {
+          log('❌ circleId is set in gathering but no such circle exists in DB');
+          // Optional: show a dialog or retry logic
+        }
+
+        return; // ✅ Exit early
+      }
+
+      // 🔄 2. Otherwise, create a new circle tied to the gathering
+      final generatedCircleId = 'gathering_circle_${gathering.id}';
+
+      log('🔍 Checking if circle $generatedCircleId already exists...');
+
       final existingCircleDoc =
-          await firestore.collection('circles').doc(circleId).get();
+          await firestore.collection('circles').doc(generatedCircleId).get();
 
       if (existingCircleDoc.exists) {
         log('✅ Circle already exists. Navigating to group chat.');
         final circle = await CircleModel.fromFirestore(existingCircleDoc);
-        context.push('/bond/group-chat/$circleId', extra: circle);
+        context.push('/bond/group-chat/$generatedCircleId', extra: circle);
         return;
       }
 
+      // 🎨 Pick a random circle color
       final List<String> circleColors = [
         '#FF5A5A',
         '#7748E7',
@@ -280,7 +386,7 @@ class _GatheringDetailsScreenState
 
       log('🆕 Circle does not exist. Preparing member list...');
 
-      // 2. Prepare member list from invitees
+      // 👥 Prepare members from invitees
       final members = [
         ...gathering.invitees.values.map((e) => {
               'fullName': e.name,
@@ -294,36 +400,135 @@ class _GatheringDetailsScreenState
 
       log('👥 Members for new circle: ${members.map((e) => e['fullName']).join(', ')}');
 
-      // 3. Trigger circle creation
-      log('🚀 Creating new circle: $circleId...');
+      // 🚀 Trigger new circle creation
+      log('🚀 Creating new circle: $generatedCircleId...');
       await ref.read(circleNotifierProvider.notifier).addCircle(
             circleName: gathering.name,
             circleColor: randomColor,
             members: members,
-            circleId: circleId,
+            circleId: generatedCircleId,
           );
 
-      // 4. Fetch the newly created circle
+      // 🧾 Fetch and open new group chat
       final newCircleDoc =
-          await firestore.collection('circles').doc(circleId).get();
+          await firestore.collection('circles').doc(generatedCircleId).get();
 
       if (newCircleDoc.exists) {
         final circle = await CircleModel.fromFirestore(newCircleDoc);
         log('✅ Circle created successfully. Navigating to group chat.');
-        context.push('/bond/group-chat/$circleId', extra: circle);
+        context.push('/bond/group-chat/$generatedCircleId', extra: circle);
       } else {
         log('❌ Failed to fetch the newly created circle. Something went wrong.');
       }
     }
 
+    // void setupParticipantListener() async {
+    //   if (!mapReady || participantAnnotationManager == null || !mounted) {
+    //     log('=======reutrning==== not mounted=====');
+    //   }
+
+    //   final ByteData userIcon =
+    //       await rootBundle.load('assets/images/location_marker.png');
+    //   userIcon.buffer.asUint8List();
+
+    //   final participantCollection = FirebaseFirestore.instance
+    //       .collection('activeGatherings')
+    //       .doc(widget.gatheringId)
+    //       .collection('participants');
+
+    //   await participantSub?.cancel();
+
+    //   final List<map.Point> allPoints = [];
+
+    //   // // Add event point
+    //   // allPoints.add(map.Point(
+    //   //   coordinates: map.Position(
+    //   //     gathering.location.lng,
+    //   //     gathering.location.lat,
+    //   //   ),
+    //   // ));
+
+    //   participantSub =
+    //       participantCollection.snapshots().listen((snapshot) async {
+    //     if (!mapReady || !mounted) return;
+
+    //     try {
+    //       await participantAnnotationManager!.deleteAll();
+
+    //       for (final doc in snapshot.docs) {
+    //         final data = doc.data();
+    //         final userLat = data['lat'];
+    //         final userLng = data['lng'];
+    //         final userId = doc.id;
+
+    //         // Fetch full name of participant from Firestore
+    //         final userDoc = await FirebaseFirestore.instance
+    //             .collection('users')
+    //             .doc(userId)
+    //             .get();
+
+    //         final point =
+    //             map.Point(coordinates: map.Position(userLng, userLat));
+    //         allPoints.add(point);
+
+    //         final fullName = userDoc.data()?['fullName'] ?? 'NA';
+    //         final initials = getInitials(fullName);
+
+    //         final Uint8List customMarker =
+    //             await createMarkerFromInitials(initials);
+
+    //         log('📍 User Marker from Firestore -> lat: $userLat, lng: $userLng');
+
+    //         await participantAnnotationManager!.create(
+    //           map.PointAnnotationOptions(
+    //             geometry: map.Point(
+    //               coordinates: map.Position(userLng, userLat),
+    //             ),
+    //             image: customMarker,
+    //             // iconSize: 1.3,
+    //             // textField: 'ETA',
+    //             // textSize: 12,
+    //             // textColor: 0xffffff,
+    //           ),
+    //         );
+
+    //         // Update camera to fit all
+    //         final cameraOptions = await mapboxMap.cameraForCoordinates(
+    //             allPoints,
+    //             map.MbxEdgeInsets(top: 100, bottom: 300, left: 50, right: 50),
+    //             0,
+    //             0);
+    //         await mapboxMap.flyTo(cameraOptions, map.MapAnimationOptions());
+    //       }
+    //     } catch (e, st) {
+    //       log("❌ Error creating user markers: $e", stackTrace: st);
+    //     }
+    //   });
+    // }
+
     void setupParticipantListener() async {
       if (!mapReady || participantAnnotationManager == null || !mounted) {
-        log('=======reutrning==== not mounted=====');
+        log('=======returning==== not mounted=====');
+        return;
       }
 
       final ByteData userIcon =
           await rootBundle.load('assets/images/location_marker.png');
       userIcon.buffer.asUint8List();
+
+      final gatheringDoc = await FirebaseFirestore.instance
+          .collection('gatherings')
+          .doc(widget.gatheringId)
+          .get();
+
+      if (!gatheringDoc.exists) {
+        log("❌ Gathering not found");
+        return;
+      }
+
+      final gatheringData = gatheringDoc.data();
+      final double eventLat = gatheringData?['location']['lat'];
+      final double eventLng = gatheringData?['location']['lng'];
 
       final participantCollection = FirebaseFirestore.instance
           .collection('activeGatherings')
@@ -338,6 +543,17 @@ class _GatheringDetailsScreenState
 
         try {
           await participantAnnotationManager!.deleteAll();
+          // 🆕 Remove previous markers safely before adding new ones
+          if (participantMarkers.isNotEmpty) {
+            await participantAnnotationManager?.deleteAll();
+            participantMarkers.clear(); // 🆕 Reset list after deletion
+          }
+          List<map.Point> allPoints = [];
+
+          // ✅ Add event location to the list
+          final eventPoint =
+              map.Point(coordinates: map.Position(eventLng, eventLat));
+          allPoints.add(eventPoint);
 
           for (final doc in snapshot.docs) {
             final data = doc.data();
@@ -345,7 +561,7 @@ class _GatheringDetailsScreenState
             final userLng = data['lng'];
             final userId = doc.id;
 
-            // Fetch full name of participant from Firestore
+            // Fetch full name of participant
             final userDoc = await FirebaseFirestore.instance
                 .collection('users')
                 .doc(userId)
@@ -357,20 +573,55 @@ class _GatheringDetailsScreenState
             final Uint8List customMarker =
                 await createMarkerFromInitials(initials);
 
-            log('📍 User Marker from Firestore -> lat: $userLat, lng: $userLng');
+            final userPoint =
+                map.Point(coordinates: map.Position(userLng, userLat));
+            allPoints.add(userPoint);
 
-            await participantAnnotationManager!.create(
+            // await participantAnnotationManager!.create(
+            //   map.PointAnnotationOptions(
+            //     geometry: userPoint,
+            //     image: customMarker,
+            //   ),
+            // );
+
+            // 🆕 Create and store marker reference for future deletion
+            final newMarker = await participantAnnotationManager!.create(
               map.PointAnnotationOptions(
-                geometry: map.Point(
-                  coordinates: map.Position(userLng, userLat),
-                ),
+                geometry: userPoint,
                 image: customMarker,
-                // iconSize: 1.3,
-                // textField: 'ETA',
-                // textSize: 12,
-                // textColor: 0xffffff,
               ),
             );
+
+            participantMarkers.add(newMarker); // 🆕 Save marker reference
+          }
+
+          // ✅ Adjust camera only once, after all markers added
+          // final cameraOptions = await mapboxMap.cameraForCoordinates(
+          //   allPoints,
+          //   map.MbxEdgeInsets(top: 50, bottom: 100, left: 50, right: 50),
+          //   0,
+          //   0,
+          // );
+          // await mapboxMap.flyTo(
+          //     cameraOptions, map.MapAnimationOptions(duration: 1000));
+
+          // ✅ Adjust camera
+          if (allPoints.length == 1) {
+            // Only event point present (before 1-hour mark)
+            await mapboxMap.setCamera(map.CameraOptions(
+              center: eventPoint,
+              zoom: 10.0, // 👈 Better default for solo location view
+            ));
+          } else {
+            // Multiple points – fit all
+            final cameraOptions = await mapboxMap.cameraForCoordinates(
+              allPoints,
+              map.MbxEdgeInsets(top: 50, bottom: 100, left: 50, right: 50),
+              0,
+              0,
+            );
+            await mapboxMap.flyTo(
+                cameraOptions, map.MapAnimationOptions(duration: 1000));
           }
         } catch (e, st) {
           log("❌ Error creating user markers: $e", stackTrace: st);
@@ -547,518 +798,543 @@ class _GatheringDetailsScreenState
               height: MediaQuery.of(context).size.height,
               child: Stack(
                 children: [
-                  Container(
-                    height: 300,
-                    // color: Colors.yellow,
-                    width: MediaQuery.of(context).size.width,
-                    child: map.MapWidget(
-                        key: ValueKey("map-${gathering.id}"),
-                        // styleUri: map.MapboxStyles.LIGHT,
-                        cameraOptions: map.CameraOptions(
-                          center: map.Point(
-                            coordinates: map.Position(
-                              gathering.location.lng,
-                              gathering.location.lat,
-                            ),
-                          ),
-                          zoom: 10,
-                        ),
-                        onMapCreated: (mapController) async {
-                          final ByteData bytes = await rootBundle
-                              .load('assets/images/map_icon.png');
-                          final Uint8List imageData =
-                              bytes.buffer.asUint8List();
-
-                          // Event Marker
-                          final eventAnnotationManager = await mapController
-                              .annotations
-                              .createPointAnnotationManager();
-
-                          await eventAnnotationManager.create(
-                            map.PointAnnotationOptions(
-                              geometry: map.Point(
-                                coordinates: map.Position(
-                                  gathering.location.lng,
-                                  gathering.location.lat,
-                                ),
-                              ),
-                              image: imageData,
-                              iconSize: 1.5,
-                            ),
-                          );
-
-                          participantAnnotationManager = await mapController
-                              .annotations
-                              .createPointAnnotationManager();
-
-                          mapReady = true;
-
-                          setupParticipantListener();
-                        }),
-                  ),
-                  DraggableScrollableSheet(
-                      initialChildSize: 0.7,
-                      minChildSize: 0.7,
-                      snap: true,
-                      expand: true,
-                      maxChildSize: 0.85,
-                      builder: (context, scrollController) {
+                  AnimatedBuilder(
+                      animation:
+                          Listenable.merge([ValueNotifier(_currentSheetSize)]),
+                      builder: (context, _) {
                         return Container(
-                          decoration: BoxDecoration(
-                            color: Color(0xff001311),
-                            borderRadius:
-                                BorderRadius.vertical(top: Radius.circular(24)),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 12)
-                          // .copyWith(top: 50),
-                          ,
-                          child: Column(
-                            children: [
-                              Expanded(
-                                child: ListView(
-                                  controller: scrollController,
-                                  // padding: EdgeInsets.all(20),
-                                  // physics: NeverScrollableScrollPhysics(),
-                                  children: [
-                                    // SizedBox(height: 50),
+                          height: MediaQuery.of(context).size.height *
+                              (1 - _currentSheetSize),
+                          // color: Colors.yellow,
+                          width: MediaQuery.of(context).size.width,
+                          child: map.MapWidget(
+                              key: ValueKey("map-${gathering.id}"),
+                              // styleUri: map.MapboxStyles.LIGHT,
+                              cameraOptions: map.CameraOptions(
+                                center: map.Point(
+                                  coordinates: map.Position(
+                                    gathering.location.lng,
+                                    gathering.location.lat,
+                                  ),
+                                ),
+                                zoom: 10,
+                              ),
+                              onMapCreated: (mapController) async {
+                                mapboxMap = mapController;
+                                final ByteData bytes = await rootBundle
+                                    .load('assets/images/map_icon.png');
+                                final Uint8List imageData =
+                                    bytes.buffer.asUint8List();
 
-                                    Center(
-                                      child: Opacity(
-                                        opacity: 0.30,
-                                        child: Container(
-                                          width: 79,
-                                          height: 5,
-                                          decoration: ShapeDecoration(
-                                            color: const Color(0xFFE7E7E7),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(2.50),
+                                // Event Marker
+                                final eventAnnotationManager =
+                                    await mapController.annotations
+                                        .createPointAnnotationManager();
+
+                                await eventAnnotationManager.create(
+                                  map.PointAnnotationOptions(
+                                    geometry: map.Point(
+                                      coordinates: map.Position(
+                                        gathering.location.lng,
+                                        gathering.location.lat,
+                                      ),
+                                    ),
+                                    image: imageData,
+                                    iconSize: 1.5,
+                                  ),
+                                );
+
+                                participantAnnotationManager =
+                                    await mapController.annotations
+                                        .createPointAnnotationManager();
+
+                                mapReady = true;
+
+                                setupParticipantListener();
+                              }),
+                        );
+                      }),
+                  DraggableScrollableSheet(
+                      controller: draggableController,
+                      initialChildSize: _currentSheetSize,
+                      // minChildSize: 0.7,
+                      // snap: true,
+                      // expand: true,
+                      // maxChildSize: 0.85,
+                      snapSizes: [0.2, 0.5, 0.7, 0.95],
+                      minChildSize: 0.2,
+                      maxChildSize: 0.95,
+                      snap: false,
+                      builder: (context, scrollController) {
+                        return NotificationListener<
+                            DraggableScrollableNotification>(
+                          onNotification: (notification) {
+                            setState(() {
+                              _currentSheetSize = notification.extent;
+                            });
+                            return true;
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Color(0xff001311),
+                              borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(24)),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 12)
+                            // .copyWith(top: 50),
+                            ,
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: ListView(
+                                    controller: scrollController,
+                                    // padding: EdgeInsets.all(20),
+                                    // physics: NeverScrollableScrollPhysics(),
+                                    children: [
+                                      // SizedBox(height: 50),
+
+                                      Center(
+                                        child: Opacity(
+                                          opacity: 0.30,
+                                          child: Container(
+                                            width: 79,
+                                            height: 5,
+                                            decoration: ShapeDecoration(
+                                              color: const Color(0xFFE7E7E7),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(2.50),
+                                              ),
                                             ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(
-                                      height: 30,
-                                    ),
-
-                                    // Text(
-                                    //   "Description",
-                                    //   style: TextStyle(
-                                    //     color: Colors.white,
-                                    //     fontSize: 16,
-                                    //     fontFamily: 'Inter',
-                                    //     fontWeight: FontWeight.w500,
-                                    //   ),
-                                    // ),
-                                    // SizedBox(height: 11),
-                                    Text(
-                                      gathering.name,
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 20,
-                                        fontFamily: 'Inter',
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    SizedBox(
-                                      height: 24,
-                                    ),
-
-                                    if (isHost &&
-                                        pendingRequests.isNotEmpty) ...[
-                                      Padding(
-                                        padding:
-                                            EdgeInsets.symmetric(vertical: 8)
-                                                .copyWith(bottom: 0),
-                                        child: Text(
-                                          "Public Join Requests",
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
                                           ),
                                         ),
                                       ),
                                       SizedBox(
-                                        height: 8,
+                                        height: 30,
                                       ),
-                                      ...pendingRequests.map((entry) {
-                                        final userId = entry.key;
-                                        final user = entry.value;
 
-                                        return Card(
-                                          color: const Color(0xFF0F2A29),
-                                          margin: const EdgeInsets.symmetric(
-                                              vertical: 6),
-                                          child: Column(
-                                            children: [
-                                              ListTile(
-                                                title: Text(user.name,
-                                                    style: const TextStyle(
-                                                        color: Colors.white)),
-                                                subtitle: Text(user.phoneNumber,
-                                                    style: const TextStyle(
-                                                        color: Colors.grey)),
-                                              ),
-                                              Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                            horizontal: 16,
-                                                            vertical: 16)
-                                                        .copyWith(top: 0),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Expanded(
-                                                      child: ElevatedButton(
-                                                        onPressed: () async {
-                                                          await FirebaseFirestore
-                                                              .instance
-                                                              .collection(
-                                                                  'gatherings')
-                                                              .doc(gathering.id)
-                                                              .update({
-                                                            'joinedPublicUsers.$userId.status':
-                                                                'accepted',
-                                                            'publicJoinCount':
-                                                                FieldValue
-                                                                    .increment(
-                                                                        1),
-                                                          });
-
-                                                          if (context.mounted) {
-                                                            Fluttertoast.showToast(
-                                                                toastLength: Toast
-                                                                    .LENGTH_LONG,
-                                                                msg:
-                                                                    "User request approved!",
-                                                                textColor:
-                                                                    Colors
-                                                                        .black,
-                                                                backgroundColor: Theme.of(
-                                                                        context)
-                                                                    .colorScheme
-                                                                    .primary);
-                                                          }
-                                                        },
-                                                        style: ElevatedButton
-                                                            .styleFrom(
-                                                          backgroundColor:
-                                                              const Color(
-                                                                  0xFF03FFE2),
-                                                          foregroundColor:
-                                                              Colors.black,
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                                  horizontal:
-                                                                      14,
-                                                                  vertical: 8),
-                                                          textStyle:
-                                                              const TextStyle(
-                                                                  fontSize: 14),
-                                                        ),
-                                                        child: const Text(
-                                                            'Approve'),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: ElevatedButton(
-                                                        onPressed: () async {
-                                                          await FirebaseFirestore
-                                                              .instance
-                                                              .collection(
-                                                                  'gatherings')
-                                                              .doc(gathering.id)
-                                                              .update({
-                                                            'joinedPublicUsers.$userId.status':
-                                                                'rejected',
-                                                          });
-
-                                                          if (context.mounted) {
-                                                            Fluttertoast.showToast(
-                                                                toastLength: Toast
-                                                                    .LENGTH_LONG,
-                                                                msg:
-                                                                    "User request rejected !",
-                                                                textColor:
-                                                                    Colors
-                                                                        .black,
-                                                                backgroundColor: Theme.of(
-                                                                        context)
-                                                                    .colorScheme
-                                                                    .primary);
-                                                          }
-                                                        },
-                                                        style: ElevatedButton
-                                                            .styleFrom(
-                                                          backgroundColor:
-                                                              Colors.redAccent,
-                                                          foregroundColor:
-                                                              Colors.white,
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                                  horizontal:
-                                                                      14,
-                                                                  vertical: 8),
-                                                          textStyle:
-                                                              const TextStyle(
-                                                                  fontSize: 14),
-                                                        ),
-                                                        child: const Text(
-                                                            'Reject'),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }),
-                                      SizedBox(height: 24),
-                                    ],
-                                    Text(
-                                      'When?',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                        fontFamily: 'Inter',
-                                        fontWeight: FontWeight.w400,
-                                      ),
-                                    ),
-                                    SizedBox(height: 10),
-                                    buildTimeContainer(gathering),
-                                    SizedBox(height: 24),
-                                    Text("Location",
+                                      // Text(
+                                      //   "Description",
+                                      //   style: TextStyle(
+                                      //     color: Colors.white,
+                                      //     fontSize: 16,
+                                      //     fontFamily: 'Inter',
+                                      //     fontWeight: FontWeight.w500,
+                                      //   ),
+                                      // ),
+                                      // SizedBox(height: 11),
+                                      Text(
+                                        gathering.name,
                                         style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w500)),
-                                    SizedBox(height: 6),
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                          vertical: 16, horizontal: 20),
-                                      decoration: BoxDecoration(
-                                        color: Color(0xff091F1E),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            child: CachedNetworkImage(
-                                              height: 160,
-                                              fit: BoxFit.cover,
-                                              width: MediaQuery.sizeOf(context)
-                                                  .width,
-                                              imageUrl:
-                                                  'https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${gathering.photoRef}&key=$googleApiKey',
-                                              placeholder: (context, url) => Center(
-                                                  child:
-                                                      CircularProgressIndicator()),
-                                              errorWidget:
-                                                  (context, url, error) =>
-                                                      Icon(Icons.error),
-                                            ),
-                                          ),
-                                          SizedBox(
-                                            height: 24,
-                                          ),
-                                          Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Icon(
-                                                Icons.location_on_outlined,
-                                                color: Colors.grey,
-                                                size: 25,
-                                              ),
-                                              SizedBox(width: 6),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      gathering.location.name,
-                                                      maxLines: 2,
-                                                      style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 18,
-                                                        fontFamily: 'Inter',
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                      ),
-                                                    ),
-                                                    SizedBox(
-                                                      height: 6,
-                                                    ),
-                                                    Text(
-                                                      gathering
-                                                          .location.address,
-                                                      maxLines: 3,
-                                                      style: TextStyle(
-                                                        color: const Color(
-                                                            0xFFC4C4C4),
-                                                        fontSize: 13,
-                                                        fontFamily: 'Inter',
-                                                        fontWeight:
-                                                            FontWeight.w400,
-                                                        letterSpacing: -0.32,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          SizedBox(
-                                            height: 24,
-                                          ),
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: ElevatedButton(
-                                                  onPressed: () {
-                                                    // Handle Details press
-                                                  },
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                    backgroundColor: Color(
-                                                        0xFF001311), // dark background
-                                                    foregroundColor:
-                                                        Colors.white,
-                                                    shape:
-                                                        RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              12),
-                                                    ),
-                                                    padding:
-                                                        EdgeInsets.symmetric(
-                                                            vertical: 14),
-                                                  ),
-                                                  child: Text(
-                                                    'Details',
-                                                    style: TextStyle(
-                                                      fontSize: 14,
-                                                      fontFamily: 'Inter',
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      height: 1.43,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              SizedBox(width: 12),
-                                              Expanded(
-                                                child: ElevatedButton(
-                                                  onPressed: () {
-                                                    // Handle Directions press
-
-                                                    openMapsDirections(
-                                                        gathering.location.lat,
-                                                        gathering.location.lng);
-                                                  },
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                    backgroundColor:
-                                                        Colors.white,
-                                                    foregroundColor:
-                                                        Colors.black,
-                                                    shape:
-                                                        RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              12),
-                                                    ),
-                                                    padding:
-                                                        EdgeInsets.symmetric(
-                                                            vertical: 14),
-                                                  ),
-                                                  child: Text(
-                                                    'Directions',
-                                                    style: TextStyle(
-                                                      fontSize: 14,
-                                                      fontFamily: 'Inter',
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      height: 1.43,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          )
-                                        ],
-                                      ),
-                                    ),
-                                    if (myStatus == 'accepted') ...[
-                                      SizedBox(height: 24),
-                                      Container(
-                                        decoration: ShapeDecoration(
-                                          color: const Color(0xFF091F1E),
-                                          shape: RoundedRectangleBorder(
-                                            side: BorderSide(
-                                              width: 1,
-                                              color: const Color(0xFF082523),
-                                            ),
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                        ),
-                                        child: SwitchListTile(
-                                          contentPadding: EdgeInsets.only(left: 16,right: 16,top: 8,bottom: 8),
-                                          value: isSharing,
-                                          onChanged: (value) {
-                                            setState(() => isSharing = value);
-                                            toggleLocationSharing(
-                                              gatheringId: widget.gatheringId,
-                                              userId: FirebaseAuth
-                                                  .instance.currentUser!.uid,
-                                              enable: value,
-                                            );
-                                          },
-                                          title: Text("Share Live Location",
-                                              style: TextStyle(
-                                                  color: Colors.white)),
-                                          activeColor: Colors.greenAccent,
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontFamily: 'Inter',
+                                          fontWeight: FontWeight.w700,
                                         ),
                                       ),
-                                    ],
-
-                                    SizedBox(height: 24),
-                                    Text(
-                                      "Invited (${gathering.invitees.length - 1})",
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                        fontFamily: 'Inter',
-                                        fontWeight: FontWeight.w400,
-                                      ),
-                                    ),
-                                    SizedBox(height: 24),
-                                    GatheringInviteeLsitWidget(
-                                      inviteeEntries: inviteeEntries,
-                                      inviteeETAs: inviteeETAs,
-                                      travelStatuses: travelStatuses,
-                                      currentUserId: currentUserId,
-                                      gathering: gathering,
-                                    ),
-                                    if (nonRegisteredEntries.isNotEmpty) ...[
                                       SizedBox(
                                         height: 24,
                                       ),
+
+                                      if (isHost &&
+                                          pendingRequests.isNotEmpty) ...[
+                                        Padding(
+                                          padding:
+                                              EdgeInsets.symmetric(vertical: 8)
+                                                  .copyWith(bottom: 0),
+                                          child: Text(
+                                            "Public Join Requests",
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          height: 8,
+                                        ),
+                                        ...pendingRequests.map((entry) {
+                                          final userId = entry.key;
+                                          final user = entry.value;
+
+                                          return Card(
+                                            color: const Color(0xFF0F2A29),
+                                            margin: const EdgeInsets.symmetric(
+                                                vertical: 6),
+                                            child: Column(
+                                              children: [
+                                                ListTile(
+                                                  title: Text(user.name,
+                                                      style: const TextStyle(
+                                                          color: Colors.white)),
+                                                  subtitle: Text(
+                                                      user.phoneNumber,
+                                                      style: const TextStyle(
+                                                          color: Colors.grey)),
+                                                ),
+                                                Padding(
+                                                  padding: const EdgeInsets
+                                                          .symmetric(
+                                                          horizontal: 16,
+                                                          vertical: 16)
+                                                      .copyWith(top: 0),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Expanded(
+                                                        child: ElevatedButton(
+                                                          onPressed: () async {
+                                                            await FirebaseFirestore
+                                                                .instance
+                                                                .collection(
+                                                                    'gatherings')
+                                                                .doc(gathering
+                                                                    .id)
+                                                                .update({
+                                                              'joinedPublicUsers.$userId.status':
+                                                                  'accepted',
+                                                              'publicJoinCount':
+                                                                  FieldValue
+                                                                      .increment(
+                                                                          1),
+                                                            });
+
+                                                            if (context
+                                                                .mounted) {
+                                                              Fluttertoast.showToast(
+                                                                  toastLength: Toast
+                                                                      .LENGTH_LONG,
+                                                                  msg:
+                                                                      "User request approved!",
+                                                                  textColor:
+                                                                      Colors
+                                                                          .black,
+                                                                  backgroundColor: Theme.of(
+                                                                          context)
+                                                                      .colorScheme
+                                                                      .primary);
+                                                            }
+                                                          },
+                                                          style: ElevatedButton
+                                                              .styleFrom(
+                                                            backgroundColor:
+                                                                const Color(
+                                                                    0xFF03FFE2),
+                                                            foregroundColor:
+                                                                Colors.black,
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
+                                                                    horizontal:
+                                                                        14,
+                                                                    vertical:
+                                                                        8),
+                                                            textStyle:
+                                                                const TextStyle(
+                                                                    fontSize:
+                                                                        14),
+                                                          ),
+                                                          child: const Text(
+                                                              'Approve'),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: ElevatedButton(
+                                                          onPressed: () async {
+                                                            await FirebaseFirestore
+                                                                .instance
+                                                                .collection(
+                                                                    'gatherings')
+                                                                .doc(gathering
+                                                                    .id)
+                                                                .update({
+                                                              'joinedPublicUsers.$userId.status':
+                                                                  'rejected',
+                                                            });
+
+                                                            if (context
+                                                                .mounted) {
+                                                              Fluttertoast.showToast(
+                                                                  toastLength: Toast
+                                                                      .LENGTH_LONG,
+                                                                  msg:
+                                                                      "User request rejected !",
+                                                                  textColor:
+                                                                      Colors
+                                                                          .black,
+                                                                  backgroundColor: Theme.of(
+                                                                          context)
+                                                                      .colorScheme
+                                                                      .primary);
+                                                            }
+                                                          },
+                                                          style: ElevatedButton
+                                                              .styleFrom(
+                                                            backgroundColor:
+                                                                Colors
+                                                                    .redAccent,
+                                                            foregroundColor:
+                                                                Colors.white,
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
+                                                                    horizontal:
+                                                                        14,
+                                                                    vertical:
+                                                                        8),
+                                                            textStyle:
+                                                                const TextStyle(
+                                                                    fontSize:
+                                                                        14),
+                                                          ),
+                                                          child: const Text(
+                                                              'Reject'),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }),
+                                        SizedBox(height: 24),
+                                      ],
                                       Text(
-                                        "Other contacts - not registered in app (${gathering.nonRegisteredInvitees.length})",
+                                        'When?',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontFamily: 'Inter',
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                      ),
+                                      SizedBox(height: 10),
+                                      buildTimeContainer(gathering),
+                                      SizedBox(height: 24),
+                                      Text("Location",
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w500)),
+                                      SizedBox(height: 6),
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                            vertical: 16, horizontal: 20),
+                                        decoration: BoxDecoration(
+                                          color: Color(0xff091F1E),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              child: CachedNetworkImage(
+                                                height: 160,
+                                                fit: BoxFit.cover,
+                                                width:
+                                                    MediaQuery.sizeOf(context)
+                                                        .width,
+                                                imageUrl:
+                                                    'https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${gathering.photoRef}&key=$googleApiKey',
+                                                placeholder: (context, url) =>
+                                                    Center(
+                                                        child:
+                                                            CircularProgressIndicator()),
+                                                errorWidget:
+                                                    (context, url, error) =>
+                                                        Icon(Icons.error),
+                                              ),
+                                            ),
+                                            SizedBox(
+                                              height: 24,
+                                            ),
+                                            Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Icon(
+                                                  Icons.location_on_outlined,
+                                                  color: Colors.grey,
+                                                  size: 25,
+                                                ),
+                                                SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        gathering.location.name,
+                                                        maxLines: 2,
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 18,
+                                                          fontFamily: 'Inter',
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                      ),
+                                                      SizedBox(
+                                                        height: 6,
+                                                      ),
+                                                      Text(
+                                                        gathering
+                                                            .location.address,
+                                                        maxLines: 3,
+                                                        style: TextStyle(
+                                                          color: const Color(
+                                                              0xFFC4C4C4),
+                                                          fontSize: 13,
+                                                          fontFamily: 'Inter',
+                                                          fontWeight:
+                                                              FontWeight.w400,
+                                                          letterSpacing: -0.32,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            SizedBox(
+                                              height: 24,
+                                            ),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: ElevatedButton(
+                                                    onPressed: () {
+                                                      context.push(
+                                                        '/gathering/location-popup',
+                                                        extra: {
+                                                          'placeId':
+                                                              gathering.placeId,
+                                                        },
+                                                      );
+                                                    },
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                      backgroundColor: Color(
+                                                          0xFF001311), // dark background
+                                                      foregroundColor:
+                                                          Colors.white,
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(12),
+                                                      ),
+                                                      padding:
+                                                          EdgeInsets.symmetric(
+                                                              vertical: 14),
+                                                    ),
+                                                    child: Text(
+                                                      'Details',
+                                                      style: TextStyle(
+                                                        fontSize: 14,
+                                                        fontFamily: 'Inter',
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        height: 1.43,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                SizedBox(width: 12),
+                                                Expanded(
+                                                  child: ElevatedButton(
+                                                    onPressed: () {
+                                                      // Handle Directions press
+
+                                                      openMapsDirections(
+                                                          gathering
+                                                              .location.lat,
+                                                          gathering
+                                                              .location.lng);
+                                                    },
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                      backgroundColor:
+                                                          Colors.white,
+                                                      foregroundColor:
+                                                          Colors.black,
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(12),
+                                                      ),
+                                                      padding:
+                                                          EdgeInsets.symmetric(
+                                                              vertical: 14),
+                                                    ),
+                                                    child: Text(
+                                                      'Directions',
+                                                      style: TextStyle(
+                                                        fontSize: 14,
+                                                        fontFamily: 'Inter',
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        height: 1.43,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            )
+                                          ],
+                                        ),
+                                      ),
+                                      if (myStatus == 'accepted') ...[
+                                        SizedBox(height: 24),
+                                        Container(
+                                          decoration: ShapeDecoration(
+                                            color: const Color(0xFF091F1E),
+                                            shape: RoundedRectangleBorder(
+                                              side: BorderSide(
+                                                width: 1,
+                                                color: const Color(0xFF082523),
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                          ),
+                                          child: SwitchListTile(
+                                            contentPadding: EdgeInsets.only(
+                                                left: 16,
+                                                right: 16,
+                                                top: 8,
+                                                bottom: 8),
+                                            value: isSharing,
+                                            onChanged: (value) {
+                                              setState(() => isSharing = value);
+                                              toggleLocationSharing(
+                                                gatheringId: widget.gatheringId,
+                                                userId: FirebaseAuth
+                                                    .instance.currentUser!.uid,
+                                                enable: value,
+                                              );
+                                            },
+                                            title: Text("Share Live Location",
+                                                style: TextStyle(
+                                                    color: Colors.white)),
+                                            activeColor: Colors.greenAccent,
+                                          ),
+                                        ),
+                                      ],
+
+                                      SizedBox(height: 24),
+                                      Text(
+                                        "Invited (${gathering.invitees.length - 1})",
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 14,
@@ -1067,168 +1343,253 @@ class _GatheringDetailsScreenState
                                         ),
                                       ),
                                       SizedBox(height: 24),
-                                      ListView.separated(
-                                        separatorBuilder: (context, index) =>
-                                            Divider(
-                                          color: Color(0xff2b3c3a),
-                                          thickness: 0.5,
-                                          height: 20,
+                                      GatheringInviteeLsitWidget(
+                                        inviteeEntries: inviteeEntries,
+                                        inviteeETAs: inviteeETAs,
+                                        travelStatuses: travelStatuses,
+                                        currentUserId: currentUserId,
+                                        gathering: gathering,
+                                      ),
+                                      if (nonRegisteredEntries.isNotEmpty) ...[
+                                        SizedBox(
+                                          height: 24,
                                         ),
-                                        shrinkWrap: true,
-                                        itemCount: nonRegisteredEntries.length,
-                                        physics: NeverScrollableScrollPhysics(),
-                                        itemBuilder: (context, index) {
-                                          return Row(
-                                            children: [
-                                              CircleAvatar(
-                                                radius: 18,
-                                                backgroundColor: Colors.white,
-                                                child: Text(
-                                                  getInitials(
-                                                      nonRegisteredEntries[
-                                                              index]
-                                                          .value
-                                                          .name),
-                                                  style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Text(
-                                                nonRegisteredEntries[index]
-                                                    .value
-                                                    .name,
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 16,
-                                                  fontFamily: 'Inter',
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        },
-                                      )
-                                    ],
-
-                                    if (publicPeopleEntries.isNotEmpty) ...[
-                                      SizedBox(
-                                        height: 24,
-                                      ),
-                                      Row(
-                                        children: [
-                                          Text(
-                                            "Public invitees (${gathering.joinedPublicUsers.length})   ",
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 14,
-                                              fontFamily: 'Inter',
-                                              fontWeight: FontWeight.w400,
-                                            ),
+                                        Text(
+                                          "Other contacts - not registered in app (${gathering.nonRegisteredInvitees.length})",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontFamily: 'Inter',
+                                            fontWeight: FontWeight.w400,
                                           ),
-                                          Spacer(),
-                                          Text(
-                                            "${gathering.publicJoinCount}/${gathering.maxPublicParticipants} spots left",
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 14,
-                                              fontFamily: 'Inter',
-                                              fontWeight: FontWeight.w400,
-                                            ),
+                                        ),
+                                        SizedBox(height: 24),
+                                        ListView.separated(
+                                          separatorBuilder: (context, index) =>
+                                              Divider(
+                                            color: Color(0xff2b3c3a),
+                                            thickness: 0.5,
+                                            height: 20,
                                           ),
-                                        ],
-                                      ),
-                                      SizedBox(height: 24),
-                                      ListView.builder(
-                                        shrinkWrap: true,
-                                        itemCount: publicPeopleEntries.length,
-                                        physics: NeverScrollableScrollPhysics(),
-                                        itemBuilder: (context, index) {
-                                          return Row(
-                                            children: [
-                                              CircleAvatar(
-                                                radius: 18,
-                                                backgroundColor: Colors.white,
-                                                child: Text(
-                                                  getInitials(
-                                                      publicPeopleEntries[index]
-                                                          .value
-                                                          .name),
-                                                  style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    publicPeopleEntries[index]
-                                                        .value
-                                                        .name,
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 16,
-                                                      fontFamily: 'Inter',
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    publicPeopleEntries[index]
-                                                                .value
-                                                                .status ==
-                                                            'pending'
-                                                        ? 'Host approval pending'
-                                                        : publicPeopleEntries[
+                                          shrinkWrap: true,
+                                          itemCount:
+                                              nonRegisteredEntries.length,
+                                          physics:
+                                              NeverScrollableScrollPhysics(),
+                                          itemBuilder: (context, index) {
+                                            return Row(
+                                              children: [
+                                                CircleAvatar(
+                                                  radius: 18,
+                                                  backgroundColor: Colors.white,
+                                                  child: Text(
+                                                    getInitials(
+                                                        nonRegisteredEntries[
                                                                 index]
                                                             .value
-                                                            .status,
+                                                            .name),
                                                     style: TextStyle(
-                                                      color: const Color(
-                                                          0xFF58616A),
-                                                      fontSize: 14,
-                                                      fontFamily: 'Inter',
-                                                      fontWeight:
-                                                          FontWeight.w400,
-                                                    ),
-                                                  )
-                                                ],
+                                                        fontWeight:
+                                                            FontWeight.bold),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Text(
+                                                  nonRegisteredEntries[index]
+                                                      .value
+                                                      .name,
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 16,
+                                                    fontFamily: 'Inter',
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        )
+                                      ],
+
+                                      if (publicPeopleEntries.isNotEmpty) ...[
+                                        SizedBox(
+                                          height: 24,
+                                        ),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              "Public invitees (${gathering.joinedPublicUsers.length})   ",
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 14,
+                                                fontFamily: 'Inter',
+                                                fontWeight: FontWeight.w400,
                                               ),
-                                            ],
-                                          );
-                                        },
-                                      )
+                                            ),
+                                            Spacer(),
+                                            Text(
+                                              "${gathering.publicJoinCount}/${gathering.maxPublicParticipants} spots left",
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 14,
+                                                fontFamily: 'Inter',
+                                                fontWeight: FontWeight.w400,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        SizedBox(height: 24),
+                                        ListView.builder(
+                                          shrinkWrap: true,
+                                          itemCount: publicPeopleEntries.length,
+                                          physics:
+                                              NeverScrollableScrollPhysics(),
+                                          itemBuilder: (context, index) {
+                                            // log('eta list : $inviteeETAs');
+                                            // log('invitee entry : $inviteeEntries');
+                                            final entry =
+                                                publicPeopleEntries[index];
+                                            final userId = entry.key;
+                                            final invitee = entry.value;
+
+                                            final eta = inviteeETAs[userId];
+
+                                            final TravelStatus?
+                                                travelStatusUser =
+                                                travelStatuses[userId];
+
+                                            String label = invitee.name;
+                                            if (userId == currentUserId) {
+                                              label += ' (You)';
+                                            }
+                                            return Row(
+                                              children: [
+                                                CircleAvatar(
+                                                  radius: 18,
+                                                  backgroundColor: Colors.white,
+                                                  child: Text(
+                                                    getInitials(
+                                                        publicPeopleEntries[
+                                                                index]
+                                                            .value
+                                                            .name),
+                                                    style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      publicPeopleEntries[index]
+                                                          .value
+                                                          .name,
+                                                      style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 16,
+                                                        fontFamily: 'Inter',
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      publicPeopleEntries[index]
+                                                                  .value
+                                                                  .status ==
+                                                              'pending'
+                                                          ? 'Host approval pending'
+                                                          : publicPeopleEntries[
+                                                                  index]
+                                                              .value
+                                                              .status,
+                                                      style: TextStyle(
+                                                        color: const Color(
+                                                            0xFF58616A),
+                                                        fontSize: 14,
+                                                        fontFamily: 'Inter',
+                                                        fontWeight:
+                                                            FontWeight.w400,
+                                                      ),
+                                                    )
+                                                  ],
+                                                ),
+                                                Spacer(),
+                                                if (gathering.status != 'ended')
+                                                  Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment.end,
+                                                    children: [
+                                                      if (travelStatusUser !=
+                                                          null)
+                                                        Text(
+                                                          travelStatusUser
+                                                              .label,
+                                                          style: TextStyle(
+                                                            color:
+                                                                travelStatusUser
+                                                                    .color,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            fontSize: 13,
+                                                          ),
+                                                        ),
+                                                      if (eta != null)
+                                                        SizedBox(height: 4),
+                                                      if (eta != null)
+                                                        Text(
+                                                          '$eta mins away',
+                                                          style: TextStyle(
+                                                              color:
+                                                                  Colors.grey,
+                                                              fontSize: 12,
+                                                              fontFamily:
+                                                                  'Inter'),
+                                                        ),
+                                                    ],
+                                                  )
+                                              ],
+                                            );
+                                          },
+                                        )
+                                      ],
+
+                                      SizedBox(
+                                        height: 53,
+                                      ),
+
+                                      // RSVP Buttons (Only if not host and status is pending)
+                                      (!isHost &&
+                                              (myStatus == 'pending' ||
+                                                  myStatus == 'none'))
+                                          ? SizedBox()
+                                          : ContinueButton(
+                                              onPressed: () {
+                                                handlePing(
+                                                    context, ref, gathering);
+                                              },
+                                              text: 'Send ping',
+                                            ),
+                                      SizedBox(
+                                        height: 200,
+                                      ),
+
+                                      // Container(height: 800,color: Colors.blue,)
                                     ],
-
-                                    SizedBox(
-                                      height: 53,
-                                    ),
-
-                                    // RSVP Buttons (Only if not host and status is pending)
-                                    (!isHost &&
-                                            (myStatus == 'pending' ||
-                                                myStatus == 'none'))
-                                        ? SizedBox()
-                                        : ContinueButton(
-                                            onPressed: () {
-                                              handlePing(
-                                                  context, ref, gathering);
-                                            },
-                                            text: 'Send ping',
-                                          ),
-                                    SizedBox(
-                                      height: 200,
-                                    ),
-
-                                    // Container(height: 800,color: Colors.blue,)
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            )
+                                .animate() // Start animation
+                                .slideY(
+                                  begin: 0.2, // start from 40% below
+                                  end: 0,
+                                  duration: 600.ms,
+                                  curve: Curves.easeOut,
+                                )
+                                .fadeIn(duration: 400.ms),
                           ),
                         );
                       }),
@@ -1237,9 +1598,12 @@ class _GatheringDetailsScreenState
             ),
             bottomNavigationBar: Builder(
               builder: (context) {
-                if (!isHost &&
-                    myStatus == 'pending' &&
-                    gathering.isPublic == false) {
+                if ((!isHost &&
+                        myStatus == 'pending' &&
+                        gathering.isPublic == false) ||
+                    (!isHost &&
+                        myStatus == 'pending' &&
+                        gathering.invitees.containsKey(currentUserId))) {
                   // 🛎️ Case 1: Invited user (pending)
                   return Container(
                     decoration: BoxDecoration(
@@ -1249,7 +1613,8 @@ class _GatheringDetailsScreenState
                             topRight: Radius.circular(16))),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 16).copyWith(bottom: 30),
+                              horizontal: 20, vertical: 16)
+                          .copyWith(bottom: 30),
                       child: Row(
                         children: [
                           Expanded(

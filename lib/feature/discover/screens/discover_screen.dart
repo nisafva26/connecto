@@ -1,23 +1,27 @@
 import 'dart:developer';
 
+import 'package:animations/animations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:connecto/feature/dashboard/widgets/common_appbar.dart';
 import 'package:connecto/feature/discover/widgets/category_card_shimmer.dart';
 import 'package:connecto/feature/gatherings/data/acitivity_data.dart';
 import 'package:connecto/feature/gatherings/models/catoegory_places.dart';
 import 'package:connecto/feature/gatherings/models/gathering_model.dart';
+import 'package:connecto/feature/gatherings/screens/create_gathering_circle.dart';
 import 'package:connecto/feature/gatherings/screens/gathering_list.dart';
 import 'package:connecto/feature/gatherings/widgets/gathering_card.dart';
 
 import 'package:connecto/helper/get_initials.dart';
 import 'package:connecto/my_app.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_bounceable/flutter_bounceable.dart';
 import 'package:flutter_google_maps_webservices/places.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as map;
 
 class DiscoverScreen extends ConsumerStatefulWidget {
   const DiscoverScreen({super.key});
@@ -26,12 +30,17 @@ class DiscoverScreen extends ConsumerStatefulWidget {
   ConsumerState<DiscoverScreen> createState() => _DiscoverScreenState();
 }
 
-class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
+class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
+    with TickerProviderStateMixin {
   final List<Map<String, dynamic>> activities = reservedActivityList;
+
+  late final AnimationController _controller = AnimationController(
+    duration: const Duration(seconds: 2),
+    vsync: this,
+  )..forward();
 
   String? selectedActivity;
   final subtitleColor = const Color(0xff9DA5A5);
-  @override
   Future<Position> getCurrentPosition() async {
     LocationPermission permission = await Geolocator.checkPermission();
     // Geolocator.requestPermission();
@@ -87,6 +96,12 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   bool isPlaceLoading = true;
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -102,7 +117,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         placeSuggestions = results;
         isPlaceLoading = false;
       });
-      log('suggested places : ${placeSuggestions}');
+      log('suggested places : $placeSuggestions');
     } catch (e) {
       log("Error loading places: $e");
       setState(() => isPlaceLoading = false);
@@ -115,15 +130,64 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     final pendingAsync = ref.watch(pendingGatheringsProvider);
     return Scaffold(
       backgroundColor: const Color(0xff001311),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF03FFE2),
-        shape: const CircleBorder(),
-        heroTag: 'fab-2',
-        onPressed: () {
-          context.go('/gathering/create-gathering-circle');
-        },
-        child: const Icon(Icons.add, size: 20),
+      // floatingActionButton: FloatingActionButton(
+      //   backgroundColor: const Color(0xFF03FFE2),
+      //   shape: const CircleBorder(),
+      //   heroTag: 'fab-2',
+      //   onPressed: () {
+      //     context.go('/gathering/create-gathering-circle');
+      //   },
+      //   child: const Icon(Icons.add, size: 20),
+      // ),
+
+      floatingActionButton: Stack(
+        alignment: Alignment.bottomRight,
+        children: [
+          // 1. The expanding container
+          OpenContainer(
+            transitionDuration: const Duration(milliseconds: 500),
+            closedShape: const CircleBorder(),
+            closedElevation: 6.0,
+            openElevation: 0.0,
+            closedColor: const Color(0xFF03FFE2),
+            openColor: Theme.of(context).scaffoldBackgroundColor,
+            closedBuilder: (context, openContainer) {
+              return SizedBox(
+                height: 56,
+                width: 56,
+                child: Material(
+                  color: Colors.transparent,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact(); // ✅ Vibration on tap
+                      openContainer();
+                    },
+                    customBorder: const CircleBorder(),
+                    splashColor:
+                        Colors.white.withOpacity(0.2), // ✅ Subtle ripple
+                    child: const SizedBox(), // No icon here
+                  ),
+                ),
+              );
+            },
+            openBuilder: (context, _) => CreateGatheringCircleScreen(),
+          ),
+
+          // 2. Static Icon overlay
+          Positioned(
+            child: IgnorePointer(
+              child: Container(
+                height: 56,
+                width: 56,
+                alignment: Alignment.center,
+                child: const Icon(Icons.add, size: 20, color: Colors.black),
+              ),
+            ),
+          ),
+        ],
       ),
+
       appBar: CommonAppBar(),
       body: SingleChildScrollView(
         child: Padding(
@@ -235,7 +299,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                                 ),
                                 const SizedBox(width: 6),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
+                                  padding: EdgeInsets.symmetric(
                                       horizontal: 8, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF00312D),
@@ -255,8 +319,13 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                             // ...upcomingList.map((g) =>
                             //     GatheringCard(gathering: g, isPending: false)),
                             GatheringCard(
-                                gathering: upcomingList.first,
-                                isPending: false),
+                                    gathering: upcomingList.first,
+                                    isPending: false)
+                                .animate()
+                                .fadeIn(duration: 300.ms)
+                            // .scale(begin: 0.95, end: 1.0)
+                            // .scaleXY(begin: 0.95, end: 1.0),
+                            ,
                             SizedBox(
                               height: 16,
                             ),
@@ -319,11 +388,13 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                   itemBuilder: (context, index) {
                     String activity = activities[index]['name'];
                     bool isSelected = selectedActivity == activity;
-                    return GestureDetector(
+
+                    return Bounceable(
                       onTap: () {
                         // setState(() {
                         //   selectedActivity = activity;
                         // });
+                        HapticFeedback.lightImpact();
 
                         context.push('/select-location', extra: activity);
                       },
@@ -356,7 +427,12 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                           ],
                         ),
                       ),
-                    );
+                    )
+                        .animate()
+                        .fadeIn(duration: 300.ms)
+                        // .scale(begin: 0.95, end: 1.0)
+                        .scaleXY(begin: 0.95, end: 1.0)
+                        .then(delay: Duration(milliseconds: index * 100));
                   },
                 ),
               ),
@@ -415,11 +491,10 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                                       .map((e) => e.name),
                                 ];
                                 return Padding(
-                                  padding: EdgeInsets.only(
-                                      left: index == 0 ? 20 : 0),
-                                  child: buildEventHorizontalCard(
-                                      context, gathering, inviteeNames),
-                                );
+                                    padding: EdgeInsets.only(
+                                        left: index == 0 ? 20 : 0),
+                                    child: buildEventHorizontalCard(
+                                        context, gathering, inviteeNames));
                               },
                             ),
                           ),
@@ -450,7 +525,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
       GatheringModel gathering, List<String> inviteeNames) {
     return Padding(
       padding: const EdgeInsets.only(right: 16),
-      child: InkWell(
+      child: Bounceable(
         onTap: () {
           context.push('/gathering/gathering-details/${gathering.id}',
               extra: gathering);
@@ -681,13 +756,21 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
               final place = category.results[index];
               return Padding(
                 padding: EdgeInsets.only(right: 16, left: index == 0 ? 20 : 0),
-                child: GestureDetector(
+                child: Bounceable(
                   onTap: () {
+                    HapticFeedback.lightImpact();
+                    // context.push(
+                    //   '/gathering/create-gathering-circle',
+                    //   extra: {
+                    //     'activity': category.category, // String?
+                    //     'place': place,
+                    //   },
+                    // );
                     context.push(
-                      '/gathering/create-gathering-circle',
+                      '/location-details',
                       extra: {
-                        'activity': category.category, // String?
                         'place': place,
+                        'activity': category.category,
                       },
                     );
                   },
@@ -751,11 +834,19 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                     ),
                   ),
                 ),
-              );
+              )
+                  .animate()
+                  .fadeIn(duration: 300.ms)
+                  // .scale(begin: 0.95, end: 1.0)
+                  .scaleXY(begin: 0.95, end: 1.0)
+                  .then(delay: Duration(milliseconds: index * 100));
             },
           ),
         ),
       ],
-    );
+    )
+        .animate()
+        // .slideX(begin: 0.2)
+        .fadeIn();
   }
 }
