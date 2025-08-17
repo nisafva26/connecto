@@ -19,6 +19,7 @@ import 'package:connecto/feature/gatherings/widgets/custom_marker.dart';
 import 'package:connecto/feature/gatherings/widgets/gathering_invitee_bottom_modal.dart';
 import 'package:connecto/feature/gatherings/widgets/gathering_invitee_list_widget.dart';
 import 'package:connecto/feature/gatherings/widgets/travel_status.dart';
+import 'package:connecto/feature/memory_album/screens/memories_section.dart';
 import 'package:connecto/helper/get_initials.dart';
 import 'package:connecto/helper/open_maps.dart';
 import 'package:connecto/helper/toast_alert.dart';
@@ -1333,6 +1334,26 @@ class _GatheringDetailsScreenState
                                       ],
 
                                       SizedBox(height: 24),
+                                      userAsync.when(
+                                        data: (data) {
+                                          return MemoriesSection(
+                                            gid: gathering.id,
+                                            currentUid: data!.id,
+                                            currentUserName: data.fullName,
+                                            gatheringStatus: gathering
+                                                .status, // "ended" shows the section
+                                          );
+                                        },
+                                        error: (error, stackTrace) {
+                                      
+                                          return SizedBox();
+                                        },
+                                        loading: () {
+                                          return SizedBox();
+                                        },
+                                      ),
+                                      SizedBox(height: 24),
+
                                       Text(
                                         "Invited (${gathering.invitees.length - 1})",
                                         style: TextStyle(

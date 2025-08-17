@@ -15,6 +15,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:loading_indicator/loading_indicator.dart';
+import 'package:rxdart/rxdart.dart';
 
 // gathering_providers.dart
 // final pendingGatheringsProvider =
@@ -88,77 +89,166 @@ final pendingGatheringsProvider =
   }
 });
 
+// final upcomingGatheringsProvider =
+//     StreamProvider.autoDispose<List<GatheringModel>>((ref) async* {
+//   // final uid = FirebaseAuth.instance.currentUser!.uid;
+//   final user = ref.watch(authStateProvider).value;
+//   if (user == null) {
+//     yield [];
+//     return;
+//   }
+//   final uid = user.uid;
+
+//   final snapshots = FirebaseFirestore.instance
+//       .collectionGroup('invitees')
+//       .where('status', isEqualTo: 'accepted')
+//       .snapshots();
+
+//   await for (final snap in snapshots) {
+//     final userDocs = snap.docs.where((doc) => doc.id == uid).toList();
+
+//     final gatheringRefs = userDocs
+//         .map((doc) => doc.reference.parent.parent)
+//         .whereType<DocumentReference>();
+
+//     final gatheringDocs =
+//         await Future.wait(gatheringRefs.map((ref) => ref.get()));
+
+//     final upcoming = gatheringDocs
+//         .where((doc) => doc.exists)
+//         .map((doc) => GatheringModel.fromDoc(doc))
+//         .where((g) => g.dateTime.isAfter(DateTime.now()))
+//         .toList()
+//       ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+
+//     yield upcoming;
+//   }
+// });
+
 final upcomingGatheringsProvider =
-    StreamProvider.autoDispose<List<GatheringModel>>((ref) async* {
-  // final uid = FirebaseAuth.instance.currentUser!.uid;
+    StreamProvider.autoDispose<List<GatheringModel>>((ref) {
   final user = ref.watch(authStateProvider).value;
-  if (user == null) {
-    yield [];
-    return;
-  }
+  if (user == null) return Stream.value(const []);
   final uid = user.uid;
 
-  final snapshots = FirebaseFirestore.instance
+  // 1) accepted invitee (server filtered only by status)
+  final invitees$ = FirebaseFirestore.instance
       .collectionGroup('invitees')
       .where('status', isEqualTo: 'accepted')
       .snapshots();
 
-  await for (final snap in snapshots) {
-    final userDocs = snap.docs.where((doc) => doc.id == uid).toList();
+  // 2) publicly joined (no status filter)
+  final publicJoins$ = FirebaseFirestore.instance
+      .collectionGroup('joinedPublicUsers')
+      .snapshots();
 
-    final gatheringRefs = userDocs
-        .map((doc) => doc.reference.parent.parent)
-        .whereType<DocumentReference>();
+  return Rx.combineLatest2(invitees$, publicJoins$, (a, b) {
+    // keep only docs where the docId == current uid
+    final aMine = a.docs.where((d) => d.id == uid);
+    final bMine = b.docs.where((d) => d.id == uid);
 
-    final gatheringDocs =
-        await Future.wait(gatheringRefs.map((ref) => ref.get()));
+    // parent gathering refs (de‑duped)
+    final refs = <DocumentReference>{
+      ...aMine.map((d) => d.reference.parent.parent).whereType<DocumentReference>(),
+      ...bMine.map((d) => d.reference.parent.parent).whereType<DocumentReference>(),
+    }.toList();
 
-    final upcoming = gatheringDocs
-        .where((doc) => doc.exists)
-        .map((doc) => GatheringModel.fromDoc(doc))
-        .where((g) => g.dateTime.isAfter(DateTime.now()))
+    return Future.wait(refs.map((r) => r.get()));
+  })
+      .switchMap((future) => Stream.fromFuture(future))
+      .map((docs) {
+    final now = DateTime.now();
+    final list = docs
+        .where((d) => d.exists)
+        .map((d) => GatheringModel.fromDoc(d))
+        .where((g) => g.dateTime.isAfter(now))
         .toList()
       ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
-
-    yield upcoming;
-  }
+    return list;
+  });
 });
 
+
+
 final previousGatheringsProvider =
-    StreamProvider.autoDispose<List<GatheringModel>>((ref) async* {
-  // final uid = FirebaseAuth.instance.currentUser!.uid;
+    StreamProvider.autoDispose<List<GatheringModel>>((ref) {
   final user = ref.watch(authStateProvider).value;
-  if (user == null) {
-    yield [];
-    return;
-  }
+  if (user == null) return Stream.value(const []);
   final uid = user.uid;
 
-  final snapshots = FirebaseFirestore.instance
+  // 1) accepted invitees
+  final invitees$ = FirebaseFirestore.instance
       .collectionGroup('invitees')
       .where('status', isEqualTo: 'accepted')
       .snapshots();
 
-  await for (final snap in snapshots) {
-    final userDocs = snap.docs.where((doc) => doc.id == uid).toList();
+  // 2) publicly joined (no status filter)
+  final publicJoins$ = FirebaseFirestore.instance
+      .collectionGroup('joinedPublicUsers')
+      .snapshots();
 
-    final gatheringRefs = userDocs
-        .map((doc) => doc.reference.parent.parent)
-        .whereType<DocumentReference>();
+  return Rx.combineLatest2(invitees$, publicJoins$, (a, b) {
+    // keep only docs for current user
+    final aMine = a.docs.where((d) => d.id == uid);
+    final bMine = b.docs.where((d) => d.id == uid);
 
-    final gatheringDocs =
-        await Future.wait(gatheringRefs.map((ref) => ref.get()));
+    // parent gathering refs (de-duped)
+    final refs = <DocumentReference>{
+      ...aMine.map((d) => d.reference.parent.parent).whereType<DocumentReference>(),
+      ...bMine.map((d) => d.reference.parent.parent).whereType<DocumentReference>(),
+    }.toList();
 
-    final previous = gatheringDocs
-        .where((doc) => doc.exists)
-        .map((doc) => GatheringModel.fromDoc(doc))
-        .where((g) => g.dateTime.isBefore(DateTime.now()))
+    return Future.wait(refs.map((r) => r.get()));
+  })
+      .switchMap((future) => Stream.fromFuture(future))
+      .map((docs) {
+    final now = DateTime.now();
+    final list = docs
+        .where((d) => d.exists)
+        .map((d) => GatheringModel.fromDoc(d))
+        .where((g) => g.dateTime.isBefore(now))
         .toList()
-      ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
-
-    yield previous;
-  }
+      ..sort((a, b) => b.dateTime.compareTo(a.dateTime)); // latest past first
+    return list;
+  });
 });
+
+
+// final previousGatheringsProvider =
+//     StreamProvider.autoDispose<List<GatheringModel>>((ref) async* {
+//   // final uid = FirebaseAuth.instance.currentUser!.uid;
+//   final user = ref.watch(authStateProvider).value;
+//   if (user == null) {
+//     yield [];
+//     return;
+//   }
+//   final uid = user.uid;
+
+//   final snapshots = FirebaseFirestore.instance
+//       .collectionGroup('invitees')
+//       .where('status', isEqualTo: 'accepted')
+//       .snapshots();
+
+//   await for (final snap in snapshots) {
+//     final userDocs = snap.docs.where((doc) => doc.id == uid).toList();
+
+//     final gatheringRefs = userDocs
+//         .map((doc) => doc.reference.parent.parent)
+//         .whereType<DocumentReference>();
+
+//     final gatheringDocs =
+//         await Future.wait(gatheringRefs.map((ref) => ref.get()));
+
+//     final previous = gatheringDocs
+//         .where((doc) => doc.exists)
+//         .map((doc) => GatheringModel.fromDoc(doc))
+//         .where((g) => g.dateTime.isBefore(DateTime.now()))
+//         .toList()
+//       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+
+//     yield previous;
+//   }
+// });
 
 final publicGatheringsProvider = StreamProvider<List<GatheringModel>>((ref) {
   final user = ref.watch(authStateProvider).value;

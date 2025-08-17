@@ -146,8 +146,6 @@ class _SelectLocationScreenState extends State<SelectLocationScreen>
     }
   }
 
-
-
   DraggableScrollableSheet get sheet =>
       (_sheet.currentWidget as DraggableScrollableSheet);
   @override
@@ -307,7 +305,7 @@ class _SelectLocationScreenState extends State<SelectLocationScreen>
     }
   }
 
-    void handleMarkerTap(map.PointAnnotation annotation) {
+  void handleMarkerTap(map.PointAnnotation annotation) {
     final tappedEntry = searchPlaceMarkers.entries.firstWhere(
       (entry) => entry.value.annotation.id == annotation.id,
     );
@@ -420,6 +418,9 @@ class _SelectLocationScreenState extends State<SelectLocationScreen>
   Widget build(BuildContext context) {
     // // log('current position : $currentPosition');
     // log('show horizontal card : $showHorizontalCards');
+
+    // final double kb = MediaQuery.viewInsetsOf(context).bottom;
+    // log('======kb : $kb');
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -427,212 +428,219 @@ class _SelectLocationScreenState extends State<SelectLocationScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
       ),
-      body: Container(
-        height: MediaQuery.of(context).size.height,
-        padding: EdgeInsets.all(0),
-        decoration: BoxDecoration(
-          color: Colors.black,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            /// 🔹 Mapbox Map
-            Container(
-              height: MediaQuery.of(context).size.height,
-              child: Stack(
-                children: [
-                  // Invisible widget to generate an image for the label
-                  RepaintBoundary(
-                    key: labelKey,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        selectedPlace ?? '',
-                        style: TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                    ),
-                  ),
-                  RepaintBoundary(
-                    child: Container(
-                      height: 800,
-                      width: MediaQuery.sizeOf(context).width,
-                      child: map.MapWidget(
-                        onCameraChangeListener: (cameraChangedEventData) async {
-                          if (selectedLocation != null && mapboxMap != null) {
-                            final screenCoords = await mapboxMap!
-                                .pixelForCoordinate(selectedLocation!);
-                            if (screenCoords != null) {
-                              setState(() {
-                                screenPosition =
-                                    Offset(screenCoords.x, screenCoords.y);
-                              });
-                            }
-                          }
-                        },
-                        onTapListener: (context) {
-                          log('inside map on tap');
-
-                          setState(() {
-                            currentState = SheetState.fullMapMode;
-                            showHorizontalCards = true;
-                          });
-                          draggableController.animateTo(
-                            0.01, // collapse
-                            duration: Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        },
-                        key: ValueKey(currentPosition),
-                        cameraOptions: currentPosition == null
-                            ? map.CameraOptions(
-                                zoom: 10,
-                                center: map.Point(
-                                    coordinates: map.Position(
-                                  55.296249,
-                                  25.276987,
-                                )))
-                            : map.CameraOptions(
-                                zoom: 10,
-                                center: map.Point(
-                                    coordinates: map.Position(
-                                        currentPosition!.longitude,
-                                        currentPosition!.latitude
-                                        // 55.296249,
-                                        // 25.276987,
-                                        ))),
-                        onMapCreated: (map) async {
-                          setState(() {
-                            mapboxMap = map;
-                          });
-
-                          // Initialize annotation manager for adding markers
-                          annotationManager = await map.annotations
-                              .createPointAnnotationManager();
-
-                          // Initialize circle annotation manager
-                          circleAnnotationManager = await map.annotations
-                              .createCircleAnnotationManager();
-
-                          searchAnnotationManager = await map.annotations
-                              .createPointAnnotationManager();
-
-                          currentPositionManager = await map.annotations
-                              .createPointAnnotationManager();
-
-                          // ✅ Attach the listener
-                          searchAnnotationManager
-                              ?.addOnPointAnnotationClickListener(
-                            MyPointAnnotationClickListener(this),
-                          );
-
-                          // mapboxMap!.location
-                          //     .updateSettings(LocationComponentSettings(
-                          //   enabled: true,
-                          //   pulsingEnabled: true,
-                          // ));
-                        },
+      body: SingleChildScrollView(
+        child: Container(
+          // height: MediaQuery.of(context).size.height,
+          padding: EdgeInsets.all(0),
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              /// 🔹 Mapbox Map
+              Container(
+                height: MediaQuery.of(context).size.height,
+                child: Stack(
+                  children: [
+                    // Invisible widget to generate an image for the label
+                    RepaintBoundary(
+                      key: labelKey,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          selectedPlace ?? '',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
                       ),
                     ),
-                  ),
-
-                  if (screenPosition != null && showLottieIcon)
-                    Positioned(
-                      left: screenPosition!.dx -
-                          35, // center horizontally (width / 2)
-                      top: screenPosition!.dy - 55,
-                      // shift up to align pin tip (height)
-                      child: SizedBox(
-                        width: 70,
-                        height: 70,
-                        child: Lottie.asset(
-                            'assets/lottie/office-location-pin.json'),
-                      ),
-                    ),
-
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    bottom: showHorizontalCards
-                        ? 220
-                        : -180, // move off screen if false
-                    left: 0,
-                    right: 0,
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 300),
-                      opacity: showHorizontalCards ? 1.0 : 0.0,
-                      child: Visibility(
-                        visible: showHorizontalCards,
-                        maintainState: true,
-                        maintainAnimation: true,
-                        child: Container(
-                            height: 155,
-                            child: PageView.builder(
-                              padEnds: false,
-                              controller: _pageController,
-                              itemCount: suggestedPlaces.length,
-                              onPageChanged: (index) {
-                                final place = suggestedPlaces[index];
-
+                    RepaintBoundary(
+                      child: Container(
+                        height: 800,
+                        width: MediaQuery.sizeOf(context).width,
+                        child: map.MapWidget(
+                          onCameraChangeListener: (cameraChangedEventData) async {
+                            if (selectedLocation != null && mapboxMap != null) {
+                              final screenCoords = await mapboxMap!
+                                  .pixelForCoordinate(selectedLocation!);
+                              if (screenCoords != null) {
                                 setState(() {
-                                  selectedPlace = place.name;
+                                  screenPosition =
+                                      Offset(screenCoords.x, screenCoords.y);
                                 });
-                                selectLocation(
-                                  place.geometry!.location.lat,
-                                  place.geometry!.location.lng,
-                                  place,
-                                );
-                              },
-                              itemBuilder: (context, index) {
-                                final place = suggestedPlaces[index];
-
-                                return AnimatedBuilder(
-                                  animation: _pageController,
-                                  builder: (context, child) {
-                                    // double value = 1.0;
-                                    // if (_pageController
-                                    //     .position.haveDimensions) {
-                                    //   value =
-                                    //       (_pageController.page! - index).abs();
-                                    //   value = (1 - (value * 0.2))
-                                    //       .clamp(0.85, 1.0); // scale effect
-                                    // }
-
-                                    return MinimalMapCard(
-                                      place: place,
-                                      currentPosition: currentPosition!,
-                                      onTap: (selected) {
-                                        context.push(
-                                          '/location-details',
-                                          extra: {
-                                            'place': selected,
-                                            'activity': widget.eventType,
-                                          },
-                                        );
-
-                                        // _flyTo(selected.geometry!.location.lat, selected.geometry!.location.lng);
-                                      },
-                                    );
-                                  },
-                                );
-                              },
-                            )),
+                              }
+                            }
+                          },
+                          onTapListener: (context) {
+                            log('inside map on tap');
+        
+                            setState(() {
+                              currentState = SheetState.fullMapMode;
+                              showHorizontalCards = true;
+                            });
+                            draggableController.animateTo(
+                              0.01, // collapse
+                              duration: Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          },
+                          key: ValueKey(currentPosition),
+                          cameraOptions: currentPosition == null
+                              ? map.CameraOptions(
+                                  zoom: 10,
+                                  center: map.Point(
+                                      coordinates: map.Position(
+                                    55.296249,
+                                    25.276987,
+                                  )))
+                              : map.CameraOptions(
+                                  zoom: 10,
+                                  center: map.Point(
+                                      coordinates: map.Position(
+                                          currentPosition!.longitude,
+                                          currentPosition!.latitude
+                                          // 55.296249,
+                                          // 25.276987,
+                                          ))),
+                          onMapCreated: (map) async {
+                            setState(() {
+                              mapboxMap = map;
+                            });
+        
+                            // Initialize annotation manager for adding markers
+                            annotationManager = await map.annotations
+                                .createPointAnnotationManager();
+        
+                            // Initialize circle annotation manager
+                            circleAnnotationManager = await map.annotations
+                                .createCircleAnnotationManager();
+        
+                            searchAnnotationManager = await map.annotations
+                                .createPointAnnotationManager();
+        
+                            currentPositionManager = await map.annotations
+                                .createPointAnnotationManager();
+        
+                            // ✅ Attach the listener
+                            searchAnnotationManager
+                                ?.addOnPointAnnotationClickListener(
+                              MyPointAnnotationClickListener(this),
+                            );
+        
+                            // mapboxMap!.location
+                            //     .updateSettings(LocationComponentSettings(
+                            //   enabled: true,
+                            //   pulsingEnabled: true,
+                            // ));
+                          },
+                        ),
                       ),
                     ),
-                  ),
-
-                  /// 🔹 Animated Positioned Container (Smooth Transition)
-                  NotificationListener<DraggableScrollableNotification>(
-                    onNotification:
+        
+                    if (screenPosition != null && showLottieIcon)
+                      Positioned(
+                        left: screenPosition!.dx -
+                            35, // center horizontally (width / 2)
+                        top: screenPosition!.dy - 55,
+                        // shift up to align pin tip (height)
+                        child: SizedBox(
+                          width: 70,
+                          height: 70,
+                          child: Lottie.asset(
+                              'assets/lottie/office-location-pin.json'),
+                        ),
+                      ),
+        
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      bottom: showHorizontalCards
+                          ? 220
+                          : -180, // move off screen if false
+                      left: 0,
+                      right: 0,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 300),
+                        opacity: showHorizontalCards ? 1.0 : 0.0,
+                        child: Visibility(
+                          visible: showHorizontalCards,
+                          maintainState: true,
+                          maintainAnimation: true,
+                          child: Container(
+                              height: 155,
+                              child: PageView.builder(
+                                padEnds: false,
+                                controller: _pageController,
+                                itemCount: suggestedPlaces.length,
+                                onPageChanged: (index) {
+                                  final place = suggestedPlaces[index];
+        
+                                  setState(() {
+                                    selectedPlace = place.name;
+                                  });
+                                  selectLocation(
+                                    place.geometry!.location.lat,
+                                    place.geometry!.location.lng,
+                                    place,
+                                  );
+                                },
+                                itemBuilder: (context, index) {
+                                  final place = suggestedPlaces[index];
+        
+                                  return AnimatedBuilder(
+                                    animation: _pageController,
+                                    builder: (context, child) {
+                                      // double value = 1.0;
+                                      // if (_pageController
+                                      //     .position.haveDimensions) {
+                                      //   value =
+                                      //       (_pageController.page! - index).abs();
+                                      //   value = (1 - (value * 0.2))
+                                      //       .clamp(0.85, 1.0); // scale effect
+                                      // }
+        
+                                      return MinimalMapCard(
+                                        place: place,
+                                        currentPosition: currentPosition!,
+                                        onTap: (selected) {
+                                          context.push(
+                                            '/location-details',
+                                            extra: {
+                                              'place': selected,
+                                              'activity': widget.eventType,
+                                            },
+                                          );
+        
+                                          // _flyTo(selected.geometry!.location.lat, selected.geometry!.location.lng);
+                                        },
+                                      );
+                                    },
+                                  );
+                                },
+                              )),
+                        ),
+                      ),
+                    ),
+        
+                    /// 🔹 Animated Positioned Container (Smooth Transition)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      top: 0,
+                      child: NotificationListener<DraggableScrollableNotification>(
+                                                onNotification:
                         (DraggableScrollableNotification notification) {
                       final current = notification.extent;
-
+                              
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        Future.delayed(const Duration(milliseconds: 100), () {
+                        Future.delayed(const Duration(milliseconds: 100),
+                            () {
                           if (showHorizontalCards &&
                               suggestedPlaces.isNotEmpty &&
                               mapboxMap != null) {
@@ -648,11 +656,11 @@ class _SelectLocationScreenState extends State<SelectLocationScreen>
                           }
                         });
                       });
-
+                              
                       // Determine drag direction
                       if (current > lastExtent) {
                         // log('🟢 Dragging up');
-
+                              
                         // ✅ Hide horizontal cards only when user is dragging up
                         if (showHorizontalCards) {
                           setState(() {
@@ -667,18 +675,19 @@ class _SelectLocationScreenState extends State<SelectLocationScreen>
                           });
                         }
                       }
-
+                              
                       lastExtent = current;
                       return true;
-                    },
-                    child: DraggableScrollableSheet(
+                                                },
+                                                child: DraggableScrollableSheet(
                         // initialChildSize: 0.5,
                         // minChildSize: 0.11,
                         initialChildSize: .4,
                         controller: draggableController,
                         snap: true,
-                        expand: true,
-                        maxChildSize: 1,
+                        snapSizes: const [0.2, 0.5, 0.85],
+                        expand: false,
+                        maxChildSize: .88,
                         minChildSize: .2,
                         builder: (context, scrollController) {
                           return Container(
@@ -691,6 +700,8 @@ class _SelectLocationScreenState extends State<SelectLocationScreen>
                             ),
                             child: CustomScrollView(
                               controller: scrollController,
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
                               slivers: [
                                 SliverPersistentHeader(
                                   pinned: true,
@@ -724,58 +735,96 @@ class _SelectLocationScreenState extends State<SelectLocationScreen>
                                     ),
                                   ),
                                 ),
-                                SliverList.list(children: [
-                                  isLoadingSuggestions
-                                      ? ListView.builder(
-                                          itemCount: 4,
-                                          padding: EdgeInsets.only(top: 0),
-                                          shrinkWrap: true,
-                                          physics:
-                                              NeverScrollableScrollPhysics(),
-                                          itemBuilder: (_, __) =>
-                                              const LocationSearchCardSkeleton(),
-                                        )
-                                      : ListView.builder(
-                                          shrinkWrap: true,
-                                          padding: EdgeInsets.only(top: 24),
-                                          physics:
-                                              NeverScrollableScrollPhysics(),
-                                          // controller: scrollController,
-                                          // physics: NeverScrollableScrollPhysics(),
-                                          // Enable smooth scrolling
-                                          itemCount: suggestedPlaces.length,
-                                          itemBuilder: (context, index) {
-                                            final place =
-                                                suggestedPlaces[index];
-
-                                            return LocationSearchCard(
-                                              place: place,
-                                              currentPosition: currentPosition!,
-                                              selectedPlace:
-                                                  selectedSearchResult,
-                                              onTap: (selected) {
-                                                context.push(
-                                                  '/location-details',
-                                                  extra: {
-                                                    'place': selected,
-                                                    'activity':
-                                                        widget.eventType,
-                                                  },
-                                                );
+                              
+                                // Skeleton state
+                                if (isLoadingSuggestions)
+                                  SliverList.builder(
+                                    itemCount: 4,
+                                    itemBuilder: (_, __) =>
+                                        const LocationSearchCardSkeleton(),
+                                  )
+                                else
+                                  SliverList.builder(
+                                    itemCount: suggestedPlaces.length,
+                                    itemBuilder: (context, index) {
+                                      final place = suggestedPlaces[index];
+                                      return Padding(
+                                        padding:
+                                            const EdgeInsets.only(top: 24),
+                                        child: LocationSearchCard(
+                                          place: place,
+                                          currentPosition: currentPosition!,
+                                          selectedPlace:
+                                              selectedSearchResult,
+                                          onTap: (selected) {
+                                            context.push(
+                                              '/location-details',
+                                              extra: {
+                                                'place': selected,
+                                                'activity':
+                                                    widget.eventType,
                                               },
                                             );
                                           },
                                         ),
-                                ])
+                                      );
+                                    },
+                                  ),
+                                // SliverList.list(children: [
+                                //   isLoadingSuggestions
+                                //       ? ListView.builder(
+                                //           itemCount: 4,
+                                //           padding: EdgeInsets.only(top: 0),
+                                //           shrinkWrap: true,
+                                //           physics:
+                                //               NeverScrollableScrollPhysics(),
+                                //           itemBuilder: (_, __) =>
+                                //               const LocationSearchCardSkeleton(),
+                                //         )
+                                //       : ListView.builder(
+                                //           shrinkWrap: true,
+                                //           padding: EdgeInsets.only(top: 24),
+                                //           physics:
+                                //               NeverScrollableScrollPhysics(),
+                                //           // controller: scrollController,
+                                //           // physics: NeverScrollableScrollPhysics(),
+                                //           // Enable smooth scrolling
+                                //           itemCount: suggestedPlaces.length,
+                                //           itemBuilder: (context, index) {
+                                //             final place =
+                                //                 suggestedPlaces[index];
+                              
+                                //             return LocationSearchCard(
+                                //               place: place,
+                                //               currentPosition:
+                                //                   currentPosition!,
+                                //               selectedPlace:
+                                //                   selectedSearchResult,
+                                //               onTap: (selected) {
+                                //                 context.push(
+                                //                   '/location-details',
+                                //                   extra: {
+                                //                     'place': selected,
+                                //                     'activity':
+                                //                         widget.eventType,
+                                //                   },
+                                //                 );
+                                //               },
+                                //             );
+                                //           },
+                                //         ),
+                                // ])
                               ],
                             ),
                           );
                         }),
-                  ),
-                ],
+                                              ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
