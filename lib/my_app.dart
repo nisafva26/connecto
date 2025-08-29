@@ -27,6 +27,7 @@ import 'package:connecto/feature/gatherings/screens/select_location_gathering.da
 import 'package:connecto/feature/gatherings/screens/select_location_screen.dart';
 import 'package:connecto/feature/gatherings/widgets/location_details_popup.dart';
 import 'package:connecto/feature/pings/screens/ping_chat_screen.dart';
+import 'package:connecto/feature/poll/screens/create_poll_circle.dart';
 import 'package:connecto/feature/video_creation/screens/video_from_photos_screen.dart';
 import 'package:connecto/notification_handler.dart';
 import 'package:connecto/theme/app_theme.dart';
@@ -305,6 +306,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     );
                   },
                 ),
+
+                GoRoute(
+                  // name: 'createGatheringCircle',
+                  parentNavigatorKey: rootNavigatorKey,
+                  path: 'create-poll',
+                  builder: (context, state) {
+                    final extra = state.extra as Map<String, dynamic>?;
+
+                    return CreatePollCircleScreen(
+                      place: extra?['place'] as PlacesSearchResult?,
+                      initialActivity: extra?['activity'] as String?,
+                      circleId: extra?['circleId'] as String?,
+                    );
+                  },
+                ),
+
                 GoRoute(
                   path: 'gathering-details/:gatheringId',
                   // use your app's root navigator key

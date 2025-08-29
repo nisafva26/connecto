@@ -7,18 +7,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class GreetingSliverAppBar extends ConsumerWidget {
-  const GreetingSliverAppBar({super.key});
+  const GreetingSliverAppBar({
+    super.key,
+    this.hasBleed = false,
+    this.bleedHeight = 0,
+  });
+
+  final bool hasBleed;
+  final double bleedHeight;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(currentUserProvider);
+    final top = MediaQuery.paddingOf(context).top;
 
     return SliverAppBar(
       pinned: true,
       stretch: true,
       elevation: 0,
       automaticallyImplyLeading: false,
-      expandedHeight: 240,
+          expandedHeight: 230 + (hasBleed ? bleedHeight : 0), // << add bleed
       backgroundColor: const Color(0xff091F1E),
       surfaceTintColor: Colors.transparent,
       flexibleSpace: LayoutBuilder(

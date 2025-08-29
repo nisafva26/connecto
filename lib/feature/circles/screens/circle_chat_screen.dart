@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connecto/feature/circles/models/circle_model.dart';
@@ -8,6 +10,7 @@ import 'package:connecto/feature/gatherings/models/gathering_model.dart';
 import 'package:connecto/feature/pings/model/ping_model.dart';
 import 'package:connecto/feature/pings/screens/ping_list_screen.dart';
 import 'package:connecto/feature/pings/widgets/ping_visualizer_chat.dart';
+import 'package:connecto/feature/poll/widgets/poll_message_card.dart';
 import 'package:connecto/helper/color_helper.dart';
 import 'package:connecto/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -289,6 +292,8 @@ class GroupPingChatScreen extends ConsumerWidget {
                   _scrollToBottom();
                 });
 
+                log('docs length : ${docs.length}');
+
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
@@ -296,6 +301,8 @@ class GroupPingChatScreen extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final doc = docs[index];
                     final message = GroupMessageModel.fromFirestore(doc);
+
+                    log('message : ${message.id}');
 
                     final isMine = message.senderId == currentUser;
 
@@ -306,15 +313,49 @@ class GroupPingChatScreen extends ConsumerWidget {
                             ? Alignment.centerRight
                             : Alignment.centerLeft,
                         child: Padding(
-                       padding: const EdgeInsets.only(bottom: 20),
+                          padding: const EdgeInsets.only(bottom: 20),
                           child: Column(
-                            crossAxisAlignment:isMine? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                            crossAxisAlignment: isMine
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
                             children: [
                               EventMessageCard(
                                 message: message,
                                 isMine: isMine,
                               ),
-                               Text(
+                              Text(
+                                DateFormat('hh:mm a').format(message.timestamp),
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    // inside itemBuilder:
+                    if (message.type == 'poll') {
+                      // Make sure your GroupMessageModel exposes pollId, text (title), etc.
+                      return Align(
+                        alignment: isMine
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 20),
+                          child: Column(
+                            crossAxisAlignment: isMine
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
+                            children: [
+                              PollMessageCard(
+                                circleId: circleId,
+                                pollId: message
+                                    .pollId!, // add this field to your model
+                                isMine: isMine,
+                                headerText: message.text, // optional
+                              ),
+                              Text(
                                 DateFormat('hh:mm a').format(message.timestamp),
                                 style: const TextStyle(
                                     fontSize: 12, color: Colors.grey),
@@ -427,6 +468,21 @@ class GroupPingChatScreen extends ConsumerWidget {
                           'registeredUsers':
                               circle.registeredUsers, // List<UserModel>?
                           'unregisteredUsers': circle.unregisteredUsers,
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _bottomActionButton(
+                    icon: Icons.poll,
+                    label: "Create Poll",
+                    onTap: () {
+                      context.push(
+                        '/gathering/create-poll',
+                        extra: {
+                          'circleId': circleId,
                         },
                       );
                     },
