@@ -685,6 +685,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                       //     },
                       //   ),
                       // ),
+                      SizedBox(height: 16,),
 
                       publicGatheringAsync.when(
                         data: (publicList) => publicList.isEmpty

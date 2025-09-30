@@ -1,5 +1,6 @@
 import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connecto/feature/poll/models/poll_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -57,9 +58,22 @@ class PollController extends StateNotifier<AsyncValue<void>> {
     required List<PollLocation> locations,
     required List<PollTimeSlot> timeSlots,
     required DateTime closesAt,
-    required String senderName
+    required String senderName,
+    // 👈 NEW
+    double? minQuorum, // 👈 NEW (0..1) optional
   }) async {
     state = const AsyncLoading();
+
+    // 🔽 fetch circle doc
+    final circleSnap = await _db.collection('circles').doc(circleId).get();
+    if (!circleSnap.exists) {
+      throw Exception("Circle not found");
+    }
+    final circleData = circleSnap.data()!;
+    final List<String> requiredVoters = (circleData['registeredUsers'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
     final uid = _auth.currentUser!.uid;
     final pollsCol =
         _db.collection('circles').doc(circleId).collection('polls');
@@ -73,42 +87,21 @@ class PollController extends StateNotifier<AsyncValue<void>> {
       createdBy: uid,
       createdAt: DateTime.now(),
       closesAt: closesAt,
+      closedAt: null,
       status: PollStatus.open,
       locations: locations,
       timeSlots: timeSlots,
       countLocation: {for (final l in locations) l.id: 0},
       countTime: {for (final t in timeSlots) t.id: 0},
+      requiredVoters: requiredVoters,
+      minQuorum: minQuorum,
     );
 
     await doc.set(poll.toMap());
 
-    // Optional: also create a "poll" message in circle chat feed
-    // await _db.collection('groupChats').doc(circleId).collection('messages').add({
-    //   'type': 'poll',
-    //   'pollId': doc.id,
-    //   'status': 'open',
-    //   'text': 'Select your preferred location & time',
-    //   'createdAt': FieldValue.serverTimestamp(),
-    //   'createdBy': uid,
-    // });
-
-    // await _db
-    //     .collection('groupChats')
-    //     .doc(circleId) // circle/group id
-    //     .collection('messages')
-    //     .add({
-    //   'type': 'poll',
-    //   'pollId': doc.id,
-    //   'status': 'open',
-    //   'text': 'Select your preferred location & time',
-    //   'createdAt': FieldValue.serverTimestamp(),
-    //   'senderId': uid,
-    // });
-
-    final col = FirebaseFirestore.instance
-        .collection('groupChats')
-        .doc(circleId)
-        .collection('messages');
+    // Create a "poll" message in group chat feed (✅ correct collection)
+    final col =
+        _db.collection('groupChats').doc(circleId).collection('messages');
     final ref = col.doc();
 
     await ref.set({
@@ -126,7 +119,8 @@ class PollController extends StateNotifier<AsyncValue<void>> {
       'pollTitle': title,
       'pollStatus': 'open',
       'pollClosesAt': Timestamp.fromDate(closesAt),
-    }, SetOptions(merge: false));
+    });
+
     // Optional: Update lastMessage
     await _db.collection('groupChats').doc(circleId).update({
       'lastMessage': {
@@ -140,7 +134,7 @@ class PollController extends StateNotifier<AsyncValue<void>> {
     return doc.id;
   }
 
-  /// Cast/update a vote (transactionally adjusts counts).
+  /// Cast/update a vote — client writes ONLY the vote doc. Server (CF) does counts & early-close.
   Future<void> vote({
     required String circleId,
     required String pollId,
@@ -148,100 +142,37 @@ class PollController extends StateNotifier<AsyncValue<void>> {
     required String timeSlotId,
   }) async {
     final uid = _auth.currentUser!.uid;
-    final pollRef =
-        _db.collection('circles').doc(circleId).collection('polls').doc(pollId);
-    final voteRef = pollRef.collection('votes').doc(uid);
+    final voteRef = _db
+        .collection('circles')
+        .doc(circleId)
+        .collection('polls')
+        .doc(pollId)
+        .collection('votes')
+        .doc(uid);
 
-    await _db.runTransaction((tx) async {
-      final pollSnap = await tx.get(pollRef);
-      if (!pollSnap.exists) throw Exception('Poll not found');
-
-      // counts
-      final data = pollSnap.data()!;
-      final counts = Map<String, dynamic>.from(data['counts'] ?? {});
-      final locCounts = Map<String, int>.from(counts['location'] ?? {});
-      final timeCounts = Map<String, int>.from(counts['time'] ?? {});
-
-      // previous?
-      final prevSnap = await tx.get(voteRef);
-      if (prevSnap.exists) {
-        final pm = prevSnap.data()!;
-        final prevLoc = pm['selectedLocationId'] as String?;
-        final prevTime = pm['selectedTimeSlotId'] as String?;
-        if (prevLoc != null && locCounts.containsKey(prevLoc)) {
-          locCounts[prevLoc] = (locCounts[prevLoc]! - 1).clamp(0, 1 << 31);
-        }
-        if (prevTime != null && timeCounts.containsKey(prevTime)) {
-          timeCounts[prevTime] = (timeCounts[prevTime]! - 1).clamp(0, 1 << 31);
-        }
-      }
-
-      // increment new
-      locCounts[locationId] = (locCounts[locationId] ?? 0) + 1;
-      timeCounts[timeSlotId] = (timeCounts[timeSlotId] ?? 0) + 1;
-
-      // write back
-      tx.update(pollRef, {
-        'counts.location': locCounts,
-        'counts.time': timeCounts,
-      });
-
-      tx.set(
-          voteRef,
-          PollVote(
-            locationId: locationId,
-            timeSlotId: timeSlotId,
-            votedAt: DateTime.now(),
-          ).toMap());
-    });
+    await voteRef.set(
+      PollVote(
+        locationId: locationId,
+        timeSlotId: timeSlotId,
+        votedAt: DateTime.now(),
+      ).toMap(),
+      SetOptions(merge: true),
+    );
   }
 
-  /// Close the poll — computes winners and updates chat message status.
+  /// Manual close — creator triggers Cloud Function, server computes winners + updates chat.
   Future<void> closePoll({
     required String circleId,
     required String pollId,
   }) async {
-    final uid = _auth.currentUser!.uid;
-    final pollRef =
-        _db.collection('circles').doc(circleId).collection('polls').doc(pollId);
-
-    await _db.runTransaction((tx) async {
-      final snap = await tx.get(pollRef);
-      if (!snap.exists) return;
-      final m = snap.data()!;
-      if (m['createdBy'] != uid) return; // only creator can close
-
-      final counts = Map<String, dynamic>.from(m['counts'] ?? {});
-      final loc = Map<String, int>.from(counts['location'] ?? {});
-      final tim = Map<String, int>.from(counts['time'] ?? {});
-
-      String? locWin;
-      String? timWin;
-
-      if (loc.isNotEmpty) {
-        locWin = loc.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
-      }
-      if (tim.isNotEmpty) {
-        timWin = tim.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
-      }
-
-      tx.update(pollRef, {
-        'status': 'closed',
-        'winners.locationId': locWin,
-        'winners.timeSlotId': timWin,
-      });
-    });
-
-    // flip the chat message referencing this poll to 'closed'
-    final msgs = await _db
-        .collection('chats')
-        .doc(circleId)
-        .collection('messages')
-        .where('pollId', isEqualTo: pollId)
-        .limit(1)
-        .get();
-    if (msgs.docs.isNotEmpty) {
-      await msgs.docs.first.reference.update({'status': 'closed'});
+    state = const AsyncLoading();
+    try {
+      final fn = FirebaseFunctions.instance.httpsCallable('closePollCallable');
+      await fn.call({'circleId': circleId, 'pollId': pollId});
+      state = const AsyncData(null);
+    } catch (e, st) {
+      log('closePoll error: $e\n$st');
+      state = AsyncError(e, st);
     }
   }
 

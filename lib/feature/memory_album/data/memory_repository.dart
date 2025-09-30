@@ -1,4 +1,5 @@
 // data/memories_repository.dart
+import 'dart:developer';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connecto/feature/memory_album/models/gathering_media_model.dart';
@@ -246,6 +247,7 @@ Future<void> deleteMedia({
 
         ok++;
       } on FirebaseException catch (e) {
+        log("storage error : ${e.message}");
         // Classify common cases; continue loop (don't abort remaining files)
         final mime = lookupMimeType(file.path) ?? '';
         final isVideo = mime.startsWith('video/') ||
@@ -263,6 +265,7 @@ Future<void> deleteMedia({
         ));
         continue;
       } catch (e) {
+        log('got error : ${e}');
         failures.add(UploadFailure(
           name: filename,
           code: 'unknown',

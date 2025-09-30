@@ -18,23 +18,26 @@ class ActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    //  final newParallax = -parallax * 15;
     return GestureDetector(
       onTap: onTap,
       child: ClipRRect(
         borderRadius: BorderRadius.only(topRight: Radius.circular(12)),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration:  Duration(milliseconds: 180),
           curve: Curves.easeOut,
           width: 149,
           height: 280,
           decoration: BoxDecoration(
+            image: DecorationImage(image: AssetImage(data.backgroundImage!),fit: BoxFit.cover),
             borderRadius: BorderRadius.circular(12),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomCenter,
-              colors: data.gradient,
-              stops: const [0.0, 0.55, 1.0],
-            ),
+            
+            // gradient: LinearGradient(
+            //   begin: Alignment.topLeft,
+            //   end: Alignment.bottomCenter,
+            //   colors: data.gradient,
+            //   stops: const [0.0, 0.55, 1.0],
+            // ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.35),
@@ -52,10 +55,13 @@ class ActivityCard extends StatelessWidget {
           child: Stack(
             children: [
               // dotted texture (move slightly opposite for depth)
-              Transform.translate(
-                offset: Offset(-parallax * 6, 0),
-                child: const _DotOverlay(),
-              ),
+              // Positioned.fill(
+              //   bottom: 0,
+              //   child: Transform.translate(
+              //     offset: Offset(-parallax * 6, 0),
+              //     child: const _DotOverlay(),
+              //   ),
+              // ),
         
               // soft bottom fade
               Positioned.fill(
@@ -79,14 +85,15 @@ class ActivityCard extends StatelessWidget {
               // hero art (foreground moves more)
               if (data.asset != null)
                 Positioned(
-                  top: -30,
-                  right: -40,
+                  top: -10,
+                  right: -10,
                   child: Transform.translate(
+                    
                     offset: Offset(parallax * 16, 0),
                     child: Image.asset(
                       data.asset!,
-                      width: 104,
-                      height: 104,
+                      width: 109,
+                      height: 109,
                       fit: BoxFit.cover,
                     ),
                   ),

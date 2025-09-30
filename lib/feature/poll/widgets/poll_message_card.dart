@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:connecto/feature/discover/screens/select_location_discover.dart';
 import 'package:connecto/feature/poll/widgets/poll_option_card.dart';
 import 'package:connecto/feature/poll/widgets/time_option_card.dart';
@@ -95,7 +97,7 @@ class PollMessageCard extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          _StatusPill(isClosed: isClosed),
+                          _StatusPill(status: poll.status),
                           const SizedBox(width: 12),
                         ],
                       ),
@@ -224,32 +226,6 @@ class PollMessageCard extends ConsumerWidget {
                           ),
                         ),
 
-                        const SizedBox(height: 20),
-                        Padding(
-                          padding: const EdgeInsets.only(right: 12),
-                          child: MiniBarsWhatsApp(
-                            counts: poll.countLocation,
-                            labels: {
-                              for (final l in poll.locations) l.id: l.name
-                            },
-                            showPercent: false, // toggle as you like
-                            sortByCountDesc: true,
-                          ),
-                        ),
-                        // NEW: time bars
-                        Padding(
-                          padding: const EdgeInsets.only(right: 12),
-                          child: MiniBarsWhatsApp(
-                            counts: poll.countTime,
-                            labels: {
-                              for (final t in poll.timeSlots)
-                                t.id: "${DateFormat('EEE, MMM d').format(t.start)} • "
-                                    "${DateFormat('h:mm a').format(t.start)} – ${DateFormat('h:mm a').format(t.end)}"
-                            },
-                            showPercent: false, // toggle as you like
-                            sortByCountDesc: true,
-                          ),
-                        ),
                         // PollResultCard(
                         //   locations: poll.locations.map((l) {
                         //     final votes = poll.countLocation[l.id] ?? 0;
@@ -286,13 +262,40 @@ class PollMessageCard extends ConsumerWidget {
                               color: Colors.white54, fontSize: 12),
                         ),
                       ],
-                      if (true) ...[
+                      const SizedBox(height: 20),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: MiniBarsWhatsApp(
+                          counts: poll.countLocation,
+                          labels: {
+                            for (final l in poll.locations) l.id: l.name
+                          },
+                          showPercent: false, // toggle as you like
+                          sortByCountDesc: true,
+                        ),
+                      ),
+                      // NEW: time bars
+                      Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: MiniBarsWhatsApp(
+                          counts: poll.countTime,
+                          labels: {
+                            for (final t in poll.timeSlots)
+                              t.id: "${DateFormat('EEE, MMM d').format(t.start)} • "
+                                  "${DateFormat('h:mm a').format(t.start)} – ${DateFormat('h:mm a').format(t.end)}"
+                          },
+                          showPercent: false, // toggle as you like
+                          sortByCountDesc: true,
+                        ),
+                      ),
+                      if (isClosed) ...[
+                        const SizedBox(height: 20),
                         _SectionTitle('Results'),
                         const SizedBox(height: 8),
                         _Winners(
                           poll: poll,
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 20),
                         if (poll.createdBy == uid)
                           _PrimaryButton(
                             text: 'Create event from winner',
@@ -312,6 +315,7 @@ class PollMessageCard extends ConsumerWidget {
                                   });
                             },
                           ),
+                        const SizedBox(height: 10),
                       ],
                     ],
                   ),
@@ -370,24 +374,39 @@ class _ErrorTile extends StatelessWidget {
 }
 
 class _StatusPill extends StatelessWidget {
-  final bool isClosed;
-  const _StatusPill({required this.isClosed});
+  final PollStatus status;
+  const _StatusPill({required this.status});
   @override
   Widget build(BuildContext context) {
+    String text;
+    Color color;
+    switch (status) {
+      case PollStatus.closed:
+        text = "Closed";
+        color = Colors.grey;
+        break;
+      case PollStatus.archived:
+        text = "Archived";
+        color = Colors.orange;
+        break;
+      case PollStatus.open:
+      default:
+        text = "Open";
+        color = const Color(0xFF03FFE2);
+    }
+
+    log('====poll status ==== : ${status}');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isClosed
-            ? Colors.grey.withOpacity(.2)
-            : const Color(0xFF03FFE2).withOpacity(.18),
+        color: color.withOpacity(.18),
         borderRadius: BorderRadius.circular(100),
-        border: Border.all(
-            color: isClosed ? Colors.grey : const Color(0xFF03FFE2), width: 1),
+        border: Border.all(color: color, width: 1),
       ),
       child: Text(
-        isClosed ? 'Closed' : 'Open',
+        text,
         style: TextStyle(
-          color: isClosed ? Colors.grey[300] : const Color(0xFF03FFE2),
+          color: color,
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),

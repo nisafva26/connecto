@@ -27,6 +27,13 @@ const axios = require("axios");
 admin.initializeApp();
 const db = admin.firestore();
 
+// v2 (use this for the new callable with `secrets`, etc.)
+const { onCall } = require("firebase-functions/v2/https");
+const { setGlobalOptions } = require("firebase-functions/v2");
+
+// optional defaults for ALL v2 funcs (does not affect v1)
+setGlobalOptions({ region: "us-central1", timeoutSeconds: 60, memoryMiB: 512 });
+
 //// 1. Confirm Gathering When At Least One Invitee Accepts
 exports.confirmGatheringOnInvite = functions.firestore
   .document("gatherings/{gatheringId}")
@@ -1240,6 +1247,52 @@ exports.sendArrivalNotifications = functions.pubsub
     }
   });
 
+exports.sendArrivalNotificationsGathering = functions.firestore
+  .document('gatherings/{gatheringId}')
+  .onUpdate(async (change, context) => {
+    const newData = change.after.data();
+    const previousData = change.before.data();
+    const { gatheringId } = context.params;
+
+    const newInvitees = newData.invitees || {};
+    const oldInvitees = previousData.invitees || {};
+
+    let arrivingUser = null;
+    let arrivingUserId = null;
+
+    // Iterate through invitees to find the one who just arrived
+    for (const userId in newInvitees) {
+      if (newInvitees[userId].arrivalStatus === 'arrived' && oldInvitees[userId]?.arrivalStatus !== 'arrived') {
+        arrivingUser = newInvitees[userId];
+        arrivingUserId = userId;
+        break;
+      }
+    }
+
+    // If no new arrival is found, exit
+    if (!arrivingUser) {
+      return null;
+    }
+    
+    // Use the event location name for a more useful notification
+    const locationName = newData.location?.name || 'the event location'; 
+    const displayName = arrivingUser.name || "A participant";
+
+    console.log(`🎯 ${displayName} has arrived at "${locationName}"`);
+
+    // Send notifications to all other invitees
+    for (const otherId in newInvitees) {
+      if (otherId !== arrivingUserId) {
+        await notifyUser(otherId, `✅ ${displayName} has arrived at "${locationName}".`, gatheringId, "arrival");
+      }
+    }
+    
+    // Notify the user who just arrived
+    await notifyUser(arrivingUserId, `🎉 You have arrived at "${locationName}"!`, gatheringId, "arrival");
+    
+    return null;
+  });
+
 
 // // ------------------ Utility Functions ------------------
 
@@ -1409,6 +1462,316 @@ exports.notifyAdminsOnAccessRequest = functions.firestore
       console.log('FCM response:', JSON.stringify(response));
     }
   });
+
+
+
+
+
+
+  // poll functions 
+
+  /** pick a winner id from a {id: count} map (tie → alphabetical) */
+function pickWinner(counts) {
+  let max = -1;
+  let candidates = [];
+  for (const [id, v] of Object.entries(counts || {})) {
+    if (v > max) {
+      max = v;
+      candidates = [id];
+    } else if (v === max) {
+      candidates.push(id);
+    }
+  }
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+  return candidates.sort()[0];
+}
+
+/** idempotent transactional close */
+async function closePollTX(circleId, pollId) {
+  const pollRef = db.doc(`circles/${circleId}/polls/${pollId}`);
+  const msgQuery = db
+    .collection(`groupChats/${circleId}/messages`)
+    .where("type", "==", "poll")
+    .where("pollId", "==", pollId)
+    .limit(1);
+
+  await db.runTransaction(async (tx) => {
+    const pollSnap = await tx.get(pollRef);
+    if (!pollSnap.exists) return;
+    const poll = pollSnap.data();
+    if (poll.status === "closed") return; // already closed
+
+    const countsLoc = (poll.counts && poll.counts.location) || {};
+    const countsTim = (poll.counts && poll.counts.time) || {};
+
+    const locationId = pickWinner(countsLoc);
+    const timeSlotId = pickWinner(countsTim);
+
+    tx.update(pollRef, {
+      status: "closed",
+      closedAt: admin.firestore.FieldValue.serverTimestamp(),
+      "winners.locationId": locationId || null,
+      "winners.timeSlotId": timeSlotId || null,
+    });
+
+    const msgSnap = await tx.get(msgQuery);
+    if (!msgSnap.empty) {
+      tx.update(msgSnap.docs[0].ref, { pollStatus: "closed" });
+    }
+  });
+}
+
+/** ------------ triggers ------------ **/
+
+// On vote write: update counts + check early close
+exports.onVoteWrite = functions.firestore
+  .document("circles/{circleId}/polls/{pollId}/votes/{uid}")
+  .onWrite(async (change, context) => {
+    const { circleId, pollId } = context.params;
+    const pollRef = db.doc(`circles/${circleId}/polls/${pollId}`);
+
+    // if vote doc was deleted, do nothing (keep it simple)
+    if (!change.after.exists) return;
+
+    const before = change.before.exists ? change.before.data() : null;
+    const after  = change.after.data();
+
+    const prevLoc = before && before.selectedLocationId;
+    const nextLoc = after  && after.selectedLocationId;
+    const prevTim = before && before.selectedTimeSlotId;
+    const nextTim = after  && after.selectedTimeSlotId;
+
+    const pollSnap = await pollRef.get();
+    if (!pollSnap.exists) return;
+    const poll = pollSnap.data();
+    if (poll.status !== "open") return;
+
+    // update counts inside a TX (only when changed)
+    await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(pollRef);
+      if (!fresh.exists) return;
+      const p = fresh.data();
+      if (p.status !== "open") return;
+
+      const loc = (p.counts && p.counts.location) || {};
+      const tim = (p.counts && p.counts.time) || {};
+
+      // LOCATION
+      if (prevLoc && nextLoc && prevLoc !== nextLoc && loc[prevLoc] != null) {
+        loc[prevLoc] = Math.max(0, (loc[prevLoc] || 0) - 1);
+      }
+      if ((!prevLoc && nextLoc) || (prevLoc && nextLoc && prevLoc !== nextLoc)) {
+        loc[nextLoc] = (loc[nextLoc] || 0) + 1;
+      }
+
+      // TIME
+      if (prevTim && nextTim && prevTim !== nextTim && tim[prevTim] != null) {
+        tim[prevTim] = Math.max(0, (tim[prevTim] || 0) - 1);
+      }
+      if ((!prevTim && nextTim) || (prevTim && nextTim && prevTim !== nextTim)) {
+        tim[nextTim] = (tim[nextTim] || 0) + 1;
+      }
+
+      tx.update(pollRef, {
+        "counts.location": loc,
+        "counts.time": tim,
+      });
+    });
+
+    // Early-close: everyone or quorum
+    const required = poll.requiredVoters || [];
+    const minQuorum = typeof poll.minQuorum === "number" ? poll.minQuorum : null;
+
+    const votesSnap = await db
+      .collection(`circles/${circleId}/polls/${pollId}/votes`)
+      .get();
+
+    const votedCount =
+      required.length > 0
+        ? votesSnap.docs.filter((d) => required.includes(d.id)).length
+        : votesSnap.size;
+
+    const everyoneVoted = required.length > 0 && votedCount >= required.length;
+    const quorumReached =
+      minQuorum != null &&
+      required.length > 0 &&
+      votedCount / required.length >= minQuorum;
+
+    if (everyoneVoted || quorumReached) {
+      await closePollTX(circleId, pollId);
+    }
+  });
+
+
+// Scheduled auto-close for overdue polls
+exports.autoCloseOverduePolls = functions.pubsub
+  .schedule("every 5 minutes")
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+
+    const q = await db
+      .collectionGroup("polls")
+      .where("status", "==", "open")
+      .where("closesAt", "<=", now)
+      .limit(50)
+      .get();
+
+    const tasks = q.docs.map((d) => {
+      // d.ref path: circles/{circleId}/polls/{pollId}
+      const circleId = d.ref.parent.parent.id; // parent = polls, parent.parent = circles/{circleId}
+      const pollId = d.id;
+      return closePollTX(circleId, pollId);
+    });
+
+    await Promise.all(tasks);
+    return null;
+  });
+
+// Manual callable (creator-only)
+exports.closePollCallable = functions.https.onCall(async (data, context) => {
+  const uid = context.auth && context.auth.uid;
+  if (!uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Login required");
+  }
+  const circleId = data.circleId;
+  const pollId = data.pollId;
+  if (!circleId || !pollId) {
+    throw new functions.https.HttpsError("invalid-argument", "Missing args");
+  }
+
+  const pollRef = db.doc(`circles/${circleId}/polls/${pollId}`);
+  const snap = await pollRef.get();
+  if (!snap.exists) {
+    throw new functions.https.HttpsError("not-found", "Poll not found");
+  }
+  const poll = snap.data();
+  if (poll.createdBy !== uid) {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Only the poll creator can close the poll"
+    );
+  }
+
+  await closePollTX(circleId, pollId);
+  return { ok: true };
+});
+
+
+
+
+const { CloudTasksClient } = require("@google-cloud/tasks");
+
+
+
+exports.startReelJob = onCall(
+  { secrets: ["REELS_RUN_URL"] },     // ✅ v2 supports secrets
+  async (req) => {
+    const db = admin.firestore();
+    const uid = (req.auth && req.auth.uid) || "system";
+
+    const {
+      gatheringId,
+      targetSeconds = 60,
+      crossfade = 0.5,
+      fitMode = "cover",
+      maxPerVideo = 5,
+    } = req.data || {};
+    if (!gatheringId) throw new Error("gatheringId is required");
+
+    const runUrl = process.env.REELS_RUN_URL;
+    if (!runUrl) throw new Error("REELS_RUN_URL secret not set");
+
+    // Load media (no orderBy so we don’t need a composite index)
+    const qs = await db
+      .collection(`gatherings/${gatheringId}/media`)
+      .where("status", "==", "active")
+      .get();
+    if (qs.empty) throw new Error("No active media.");
+
+    const docs = qs.docs.sort((a, b) => {
+      const at = a.get("createdAt"), bt = b.get("createdAt");
+      const ams = at?.toMillis?.() ?? 0, bms = bt?.toMillis?.() ?? 0;
+      return ams - bms; // oldest → newest
+    });
+
+    const MAX_ITEMS = 80;
+    const clips = [];
+    for (const d of docs.slice(0, MAX_ITEMS)) {
+      const m = d.data();
+      if (!m.storagePath || !m.type) continue;
+      clips.push({
+        gcsPath: m.storagePath,
+        type: m.type,                               // "image" | "video"
+        maxLen: m.type === "video" ? Number(maxPerVideo) || 5 : undefined,
+      });
+    }
+    if (!clips.length) throw new Error("No usable clips.");
+
+    // Create job doc (UI watches this)
+    const jobRef = db.collection(`gatherings/${gatheringId}/reelsJobs`).doc();
+    await jobRef.set({
+      status: "queued",
+      progress: 0,
+      gatheringId,
+      createdBy: uid,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      targetSeconds,
+      crossfade,
+      fitMode,
+    });
+
+    // Ensure Cloud Tasks queue exists, then enqueue
+    const project = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
+    const location = "us-central1";
+    const queueId = "reels-queue";
+
+    const client = new CloudTasksClient();
+    const queuePath = client.queuePath(project, location, queueId);
+
+    try {
+      await client.getQueue({ name: queuePath });
+    } catch (e) {
+      if (e && e.code === 5) {
+        await client.createQueue({
+          parent: client.locationPath(project, location),
+          queue: { name: queuePath },
+        });
+      } else {
+        throw new Error(`Cloud Tasks getQueue: ${e.message || e}`);
+      }
+    }
+
+    const serviceAccountEmail = `${project}@appspot.gserviceaccount.com`;
+    const payload = {
+      gatheringId,
+      targetSeconds,
+      crossfade,
+      fitMode,
+      clips,
+      jobDocPath: jobRef.path,               // Cloud Run will write progress here
+      video: { width: 1080, height: 1920, fps: 30 },
+    };
+
+    const task = {
+      httpRequest: {
+        httpMethod: "POST",
+        url: runUrl,                          // must include /render
+        headers: { "Content-Type": "application/json" },
+        body: Buffer.from(JSON.stringify(payload)).toString("base64"),
+        oidcToken: { serviceAccountEmail },
+      },
+    };
+
+    await client.createTask({ parent: queuePath, task });
+    return { ok: true, jobDocPath: jobRef.path };
+  }
+);
+
+
+
+
+
 
 
 

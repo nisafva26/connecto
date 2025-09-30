@@ -14,7 +14,7 @@ TravelStatus? getInviteeStatus({
   required int? etaInMinutes,
   required DateTime eventTime,
 }) {
-  if (distanceInMeters < 100) {
+  if (distanceInMeters < 300) {
     return TravelStatus(label: 'Arrived', color: Color(0xFF2DFFA2));
   }
 

@@ -34,6 +34,8 @@ class InviteeModel {
   final bool sharing;
   final String id;
   final String phoneNumber;
+   final String? arrivalStatus; // New: arrival status (e.g., 'arrived')
+  final DateTime? arrivalTimestamp; // New: time of arrival
 
   InviteeModel(
       {required this.status,
@@ -42,7 +44,10 @@ class InviteeModel {
       required this.name,
       required this.sharing,
       required this.id,
-      required this.phoneNumber});
+      required this.phoneNumber,
+      this.arrivalStatus,
+      this.arrivalTimestamp
+      });
 
   factory InviteeModel.fromMap(Map<String, dynamic> map, String key) {
     // log('invite map : ${map.toString()}');
@@ -55,7 +60,12 @@ class InviteeModel {
             : null,
         sharing: map['sharing'] ?? true,
         id: key,
-        phoneNumber: map['phoneNumber'] ?? '');
+        phoneNumber: map['phoneNumber'] ?? '',
+          arrivalStatus: map['arrivalStatus'] ?? '', // Add this line
+        arrivalTimestamp: map['arrivalTimestamp'] != null // Add this line
+            ? (map['arrivalTimestamp'] as Timestamp).toDate()
+            : null
+        );
   }
 
   Map<String, dynamic> toMap() {

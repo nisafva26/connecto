@@ -8,7 +8,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connecto/common_widgets/continue_button.dart';
 import 'package:connecto/feature/circles/controller/circle_notifier.dart';
 import 'package:connecto/feature/circles/models/circle_model.dart';
-import 'package:connecto/feature/circles/models/circle_state.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
 import 'package:connecto/feature/gatherings/models/gathering_model.dart';
 import 'package:connecto/feature/gatherings/providers/public_gathering_provider.dart';
@@ -16,14 +15,12 @@ import 'package:connecto/feature/gatherings/screens/select_location_screen.dart'
 import 'package:connecto/feature/gatherings/services/location_manager.dart';
 import 'package:connecto/feature/gatherings/services/mapbox_eta.dart';
 import 'package:connecto/feature/gatherings/widgets/custom_marker.dart';
-import 'package:connecto/feature/gatherings/widgets/gathering_invitee_bottom_modal.dart';
 import 'package:connecto/feature/gatherings/widgets/gathering_invitee_list_widget.dart';
 import 'package:connecto/feature/gatherings/widgets/travel_status.dart';
 import 'package:connecto/feature/memory_album/screens/memories_section.dart';
 import 'package:connecto/helper/get_initials.dart';
 import 'package:connecto/helper/open_maps.dart';
 import 'package:connecto/helper/toast_alert.dart';
-import 'package:connecto/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -33,6 +30,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+// import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as map;
 
 // final singleGatheringProvider =
@@ -85,6 +83,44 @@ class _GatheringDetailsScreenState
       ref.read(locationManagerProvider).start(widget.gatheringId);
     });
   }
+
+  // MapboxMapController? mapController;
+
+  // // New function to add the route line
+  // void _addRouteLine(List<LatLng> coordinates) {
+  //   if (mapController != null) {
+  //     mapController!.addLine(
+  //       LineOptions(
+  //         geometry: coordinates,
+  //         lineColor: '#2196F3', // Blue color for the line
+  //         lineWidth: 5.0,
+  //         lineOpacity: 0.8,
+  //       ),
+  //     );
+  //   }
+  // }
+
+  // void _fetchAndDrawRoute(GatheringModel gathering) async {
+  //   // Make sure the map is ready before fetching the route
+  //   if (mapController == null) {
+  //     return;
+  //   }
+
+  //   // Get user's current location from your LocationManager or a position stream
+  //   final userPosition = await Geolocator.getCurrentPosition();
+  //   final userLatLng = LatLng(userPosition.latitude, userPosition.longitude);
+
+  //   // Get the destination from your gathering model
+  //   final destinationLatLng =
+  //       LatLng(gathering.location.lat, gathering.location.lng);
+
+  //   try {
+  //     final routeCoordinates = await getRoute(userLatLng, destinationLatLng);
+  //     _addRouteLine(routeCoordinates);
+  //   } catch (e) {
+  //     log('Error fetching or drawing route: $e');
+  //   }
+  // }
 
   map.PointAnnotationManager? annotationManager;
   late map.MapboxMap mapboxMap;
@@ -261,75 +297,6 @@ class _GatheringDetailsScreenState
   @override
   Widget build(BuildContext context) {
     log('gatherin g id : ${widget.gatheringId}');
-    // Future<void> handlePing(
-    //   BuildContext context,
-    //   WidgetRef ref,
-    //   GatheringModel gathering,
-    // ) async {
-    //   final circleId = 'gathering_circle_${gathering.id}';
-    //   final firestore = FirebaseFirestore.instance;
-
-    //   log('🔍 Checking if circle $circleId already exists...');
-
-    //   // 1. Check if a circle already exists
-    //   final existingCircleDoc =
-    //       await firestore.collection('circles').doc(circleId).get();
-
-    //   if (existingCircleDoc.exists) {
-    //     log('✅ Circle already exists. Navigating to group chat.');
-    //     final circle = await CircleModel.fromFirestore(existingCircleDoc);
-    //     context.push('/bond/group-chat/$circleId', extra: circle);
-    //     return;
-    //   }
-
-    //   final List<String> circleColors = [
-    //     '#FF5A5A',
-    //     '#7748E7',
-    //     '#4EA46B',
-    //     '#475AE7',
-    //     '#FFC453',
-    //     '#AD45E7',
-    //   ];
-    //   final randomColor =
-    //       circleColors[math.Random().nextInt(circleColors.length)];
-
-    //   log('🆕 Circle does not exist. Preparing member list...');
-
-    //   // 2. Prepare member list from invitees
-    //   final members = [
-    //     ...gathering.invitees.values.map((e) => {
-    //           'fullName': e.name,
-    //           'phoneNumber': e.phoneNumber,
-    //         }),
-    //     ...gathering.nonRegisteredInvitees.values.map((e) => {
-    //           'fullName': e.name,
-    //           'phoneNumber': e.phone,
-    //         }),
-    //   ];
-
-    //   log('👥 Members for new circle: ${members.map((e) => e['fullName']).join(', ')}');
-
-    //   // 3. Trigger circle creation
-    //   log('🚀 Creating new circle: $circleId...');
-    //   await ref.read(circleNotifierProvider.notifier).addCircle(
-    //         circleName: gathering.name,
-    //         circleColor: randomColor,
-    //         members: members,
-    //         circleId: circleId,
-    //       );
-
-    //   // 4. Fetch the newly created circle
-    //   final newCircleDoc =
-    //       await firestore.collection('circles').doc(circleId).get();
-
-    //   if (newCircleDoc.exists) {
-    //     final circle = await CircleModel.fromFirestore(newCircleDoc);
-    //     log('✅ Circle created successfully. Navigating to group chat.');
-    //     context.push('/bond/group-chat/$circleId', extra: circle);
-    //   } else {
-    //     log('❌ Failed to fetch the newly created circle. Something went wrong.');
-    //   }
-    // }
 
     Future<void> handlePing(
       BuildContext context,
@@ -423,89 +390,7 @@ class _GatheringDetailsScreenState
       }
     }
 
-    // void setupParticipantListener() async {
-    //   if (!mapReady || participantAnnotationManager == null || !mounted) {
-    //     log('=======reutrning==== not mounted=====');
-    //   }
-
-    //   final ByteData userIcon =
-    //       await rootBundle.load('assets/images/location_marker.png');
-    //   userIcon.buffer.asUint8List();
-
-    //   final participantCollection = FirebaseFirestore.instance
-    //       .collection('activeGatherings')
-    //       .doc(widget.gatheringId)
-    //       .collection('participants');
-
-    //   await participantSub?.cancel();
-
-    //   final List<map.Point> allPoints = [];
-
-    //   // // Add event point
-    //   // allPoints.add(map.Point(
-    //   //   coordinates: map.Position(
-    //   //     gathering.location.lng,
-    //   //     gathering.location.lat,
-    //   //   ),
-    //   // ));
-
-    //   participantSub =
-    //       participantCollection.snapshots().listen((snapshot) async {
-    //     if (!mapReady || !mounted) return;
-
-    //     try {
-    //       await participantAnnotationManager!.deleteAll();
-
-    //       for (final doc in snapshot.docs) {
-    //         final data = doc.data();
-    //         final userLat = data['lat'];
-    //         final userLng = data['lng'];
-    //         final userId = doc.id;
-
-    //         // Fetch full name of participant from Firestore
-    //         final userDoc = await FirebaseFirestore.instance
-    //             .collection('users')
-    //             .doc(userId)
-    //             .get();
-
-    //         final point =
-    //             map.Point(coordinates: map.Position(userLng, userLat));
-    //         allPoints.add(point);
-
-    //         final fullName = userDoc.data()?['fullName'] ?? 'NA';
-    //         final initials = getInitials(fullName);
-
-    //         final Uint8List customMarker =
-    //             await createMarkerFromInitials(initials);
-
-    //         log('📍 User Marker from Firestore -> lat: $userLat, lng: $userLng');
-
-    //         await participantAnnotationManager!.create(
-    //           map.PointAnnotationOptions(
-    //             geometry: map.Point(
-    //               coordinates: map.Position(userLng, userLat),
-    //             ),
-    //             image: customMarker,
-    //             // iconSize: 1.3,
-    //             // textField: 'ETA',
-    //             // textSize: 12,
-    //             // textColor: 0xffffff,
-    //           ),
-    //         );
-
-    //         // Update camera to fit all
-    //         final cameraOptions = await mapboxMap.cameraForCoordinates(
-    //             allPoints,
-    //             map.MbxEdgeInsets(top: 100, bottom: 300, left: 50, right: 50),
-    //             0,
-    //             0);
-    //         await mapboxMap.flyTo(cameraOptions, map.MapAnimationOptions());
-    //       }
-    //     } catch (e, st) {
-    //       log("❌ Error creating user markers: $e", stackTrace: st);
-    //     }
-    //   });
-    // }
+  
 
     void setupParticipantListener() async {
       if (!mapReady || participantAnnotationManager == null || !mounted) {
@@ -786,6 +671,8 @@ class _GatheringDetailsScreenState
               .where((entry) => entry.value.status == 'pending')
               .toList();
 
+          log('==gathering id : ${gathering.id}');
+
           // log('isPublic ? ${gathering.isPublic}');
           return Scaffold(
             backgroundColor: Color(0xff001311),
@@ -852,6 +739,9 @@ class _GatheringDetailsScreenState
                                 mapReady = true;
 
                                 setupParticipantListener();
+
+                                //   _fetchAndDrawRoute(
+                                //       gathering); // Call it here when the map is ready
                               }),
                         );
                       }),
@@ -1345,7 +1235,6 @@ class _GatheringDetailsScreenState
                                           );
                                         },
                                         error: (error, stackTrace) {
-                                      
                                           return SizedBox();
                                         },
                                         loading: () {

@@ -2,10 +2,13 @@
 import 'dart:developer';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connecto/feature/memory_album/data/memory_repository.dart';
 import 'package:connecto/feature/memory_album/models/gathering_media_model.dart';
+import 'package:connecto/feature/memory_album/models/reels_model.dart';
 import 'package:connecto/feature/memory_album/provider/memories_provider.dart';
 import 'package:connecto/feature/memory_album/screens/memory_gallery_screen.dart';
+import 'package:connecto/feature/memory_album/widgets/reels_widget.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +16,37 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:firebase_storage/firebase_storage.dart';
+
+// final functionsProvider = Provider((ref) => FirebaseFunctions.instance);
+
+// providers
+final functionsProvider = Provider<FirebaseFunctions>((ref) {
+  // your callable is in us-central1
+  return FirebaseFunctions.instanceFor(region: 'us-central1');
+});
+
+final reelsRepoProvider = Provider<ReelsRepository>((ref) {
+  return ReelsRepository(
+    ref.watch(firestoreProvider),
+    ref.watch(storageProvider),
+    ref.watch(functionsProvider),
+  );
+});
+
+final reelsJobsProvider =
+    StreamProvider.family<List<ReelJob>, String>((ref, gid) {
+  return ref.watch(reelsRepoProvider).watchJobs(gid);
+});
+
+// host check (if you don’t already have it)
+final gatheringHostIdProvider =
+    StreamProvider.family<String?, String>((ref, gid) {
+  return ref
+      .watch(firestoreProvider)
+      .doc('gatherings/$gid')
+      .snapshots()
+      .map((d) => (d.data() ?? {})['hostId'] as String?);
+});
 
 class MemoriesSection extends ConsumerWidget {
   const MemoriesSection({
@@ -39,6 +73,10 @@ class MemoriesSection extends ConsumerWidget {
         ref.watch(mediaQuotaProvider((gid: gid, uid: currentUid)));
     final upload = ref.watch(memoriesUploadControllerProvider);
 
+    final jobsAsync = ref.watch(reelsJobsProvider(gid));
+    final hostId = ref.watch(gatheringHostIdProvider(gid)).value;
+    final isHost = hostId != null && hostId == currentUid;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -47,6 +85,8 @@ class MemoriesSection extends ConsumerWidget {
             const Text('Memories',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             const Spacer(),
+            // Create Reel button (host only)
+
             quotaAsync.when(
               data: (count) {
                 final remaining = 5 - count;
@@ -95,31 +135,58 @@ class MemoriesSection extends ConsumerWidget {
                 child: Text('Failed to load memories: $e'),
               );
             }),
+
+        const SizedBox(height: 24),
+
+        // Reels header
+        Row(
+          children: [
+            Text('Reels',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            Spacer(),
+            if (isHost) ...[
+              // const SizedBox(height: 20),
+              Center(child: CreateReelButton(gid: gid)),
+              // const SizedBox(width: 8),
+            ],
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Progress + list of reels
+        jobsAsync.when(
+          data: (jobs) {
+            log('reels job : ${jobs.toList().toString()}');
+            final active = jobs.firstWhere(
+              (j) => j.isActive,
+              orElse: () => jobs.isNotEmpty
+                  ? jobs.first
+                  : ReelJob(id: '', status: 'none', progress: 0),
+            );
+
+            log('active : ${active.status}');
+             log('error ? : ${active.error}');
+            final hasActive = active.id.isNotEmpty && active.isActive;
+
+            if (hasActive) return ReelProgressTile(job: active);
+
+            final done = jobs.where((j) => j.isDone).toList();
+            if (done.isEmpty && !hasActive) {
+              return const Text('No reels yet.');
+            }
+
+            return Column(
+              children: done.map((j) => ReelDoneTile(job: j)).toList(),
+            );
+          },
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: LinearProgressIndicator(),
+          ),
+          error: (e, _) => Text('Failed to load reels: $e'),
+        ),
       ],
     );
   }
-
-  // Future<void> _pickAndUpload(
-  //     BuildContext context, WidgetRef ref, int remaining) async {
-  //   final picker = ImagePicker();
-
-  //   // Opens the system gallery with photos + videos in one UI
-  //   final List<XFile> selected = await picker.pickMultipleMedia(
-  //     imageQuality: 85, // compress images (videos unaffected)
-  //   );
-
-  //   if (selected.isEmpty) return;
-
-  //   final files = selected.take(remaining).map((x) => File(x.path)).toList();
-
-  //   // Use the mixed uploader so videos and images both work
-  //   await ref.read(memoriesUploadControllerProvider.notifier).uploadMixed(
-  //         gid: gid,
-  //         uid: currentUid,
-  //         uploaderName: currentUserName,
-  //         files: files,
-  //       );
-  // }
 
   Future<void> _pickAndUpload(
       BuildContext context, WidgetRef ref, int remaining) async {
@@ -154,6 +221,11 @@ class MemoriesSection extends ConsumerWidget {
         const SnackBar(content: Text('All items uploaded')),
       );
     } else {
+      // log('report failures : ${report.failures}');
+      report.failures.forEach((rep){
+
+        log('report : ${rep.message}');
+      });
       final tooLarge =
           report.failures.where((f) => f.code == 'too_large').toList();
       final others =
@@ -291,48 +363,7 @@ class _MediaTile extends StatefulWidget {
 class _MediaTileState extends State<_MediaTile> {
   String? _url;
 
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   FirebaseStorage.instance
-  //       .ref(widget.media.storagePath)
-  //       .getDownloadURL()
-  //       .then((u) {
-  //     if (mounted) setState(() => _url = u);
-  //   });
-  // }
-
-  // Future<void> _loadUrl() async {
-  //   final u = await FirebaseStorage.instance
-  //       .ref(widget.media.storagePath)
-  //       .getDownloadURL();
-  //   if (mounted) setState(() => _url = u);
-  // }
-
-  // Future<void> _loadUrl() async {
-  //   final path = widget.media.type == 'video'
-  //       ? (widget.media.thumbPath ?? widget.media.storagePath)
-  //       : widget.media.storagePath;
-  //   final u = await FirebaseStorage.instance.ref(path).getDownloadURL();
-  //   if (mounted) setState(() => _url = u);
-  // }
-
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   _loadUrl();
-  // }
-
-  // @override
-  // void didUpdateWidget(covariant _MediaTile oldWidget) {
-  //   super.didUpdateWidget(oldWidget);
-  //   if (oldWidget.media.storagePath != widget.media.storagePath) {
-  //     _url = null;
-  //     _loadUrl(); // <- refresh when tile is reused for a different item
-  //   }
-  // }
-
-    Future<void> _loadUrl() async {
+  Future<void> _loadUrl() async {
     // For videos prefer the poster thumb if available
     final path = widget.media.type == 'video'
         ? (widget.media.thumbPath ?? widget.media.storagePath)
@@ -360,6 +391,7 @@ class _MediaTileState extends State<_MediaTile> {
   @override
   Widget build(BuildContext context) {
     final showPlay = widget.media.type == 'video';
+    // log('${_url}');
     return Stack(
       fit: StackFit.expand,
       children: [

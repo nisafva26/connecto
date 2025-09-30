@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -16,6 +18,7 @@ class _VideoPageState extends State<VideoPage> with AutomaticKeepAliveClientMixi
 
   @override
   void initState() {
+    log('video url : $_url');
     super.initState();
     widget.urlFuture.then((u) async {
       _url = u;

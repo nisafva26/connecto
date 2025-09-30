@@ -7,12 +7,12 @@ import 'package:connecto/feature/memory_album/models/gathering_media_model.dart'
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-
 final firestoreProvider = Provider((ref) => FirebaseFirestore.instance);
-final storageProvider   = Provider((ref) => FirebaseStorage.instance);
+final storageProvider = Provider((ref) => FirebaseStorage.instance);
 
 final memoriesRepoProvider = Provider<MemoriesRepository>((ref) {
-  return MemoriesRepository(ref.watch(firestoreProvider), ref.watch(storageProvider));
+  return MemoriesRepository(
+      ref.watch(firestoreProvider), ref.watch(storageProvider));
 });
 
 final mediaStreamProvider =
@@ -20,8 +20,8 @@ final mediaStreamProvider =
   return ref.watch(memoriesRepoProvider).watchMedia(gid);
 });
 
-final mediaQuotaProvider =
-    StreamProvider.family.autoDispose<int, ({String gid, String uid})>((ref, args) {
+final mediaQuotaProvider = StreamProvider.family
+    .autoDispose<int, ({String gid, String uid})>((ref, args) {
   return ref.watch(memoriesRepoProvider).watchQuota(args.gid, args.uid);
 });
 
@@ -38,8 +38,12 @@ class UploadState {
   final String? error;
   UploadState({this.items = const [], this.isUploading = false, this.error});
 
-  UploadState copyWith({List<UploadItem>? items, bool? isUploading, String? error}) =>
-      UploadState(items: items ?? this.items, isUploading: isUploading ?? this.isUploading, error: error);
+  UploadState copyWith(
+          {List<UploadItem>? items, bool? isUploading, String? error}) =>
+      UploadState(
+          items: items ?? this.items,
+          isUploading: isUploading ?? this.isUploading,
+          error: error);
 }
 
 class MemoriesUploadController extends StateNotifier<UploadState> {
@@ -60,23 +64,23 @@ class MemoriesUploadController extends StateNotifier<UploadState> {
 
     try {
       await ref.read(memoriesRepoProvider).uploadImages(
-        gid: gid,
-        uid: uid,
-        uploaderName: uploaderName,
-        files: files,
-        onProgress: (index, p) {
-          final items = [...state.items];
-          items[index].progress = p;
-          state = state.copyWith(items: items);
-        },
-      );
+            gid: gid,
+            uid: uid,
+            uploaderName: uploaderName,
+            files: files,
+            onProgress: (index, p) {
+              final items = [...state.items];
+              items[index].progress = p;
+              state = state.copyWith(items: items);
+            },
+          );
       state = UploadState(items: [], isUploading: false);
     } catch (e) {
       state = state.copyWith(isUploading: false, error: e.toString());
     }
   }
 
-    Future<UploadReport> uploadMixed({
+  Future<UploadReport> uploadMixed({
     required String gid,
     required String uid,
     required String uploaderName,
@@ -90,58 +94,26 @@ class MemoriesUploadController extends StateNotifier<UploadState> {
 
     try {
       final report = await ref.read(memoriesRepoProvider).uploadMixed(
-        gid: gid,
-        uid: uid,
-        uploaderName: uploaderName,
-        files: files,
-        onProgress: (index, p) {
-          final items = [...state.items];
-          if (index >= 0 && index < items.length) {
-            items[index].progress = p;
-            state = state.copyWith(items: items);
-          }
-        },
-      );
+            gid: gid,
+            uid: uid,
+            uploaderName: uploaderName,
+            files: files,
+            onProgress: (index, p) {
+              final items = [...state.items];
+              if (index >= 0 && index < items.length) {
+                items[index].progress = p;
+                state = state.copyWith(items: items);
+              }
+            },
+          );
 
-      state =  UploadState(items: [], isUploading: false);
+      state = UploadState(items: [], isUploading: false);
       return report;
     } catch (e) {
       state = state.copyWith(isUploading: false, error: e.toString());
       rethrow;
     }
   }
-
-
-//   // providers/memories_providers.dart  (inside MemoriesUploadController)
-// Future<void> uploadMixed({
-//   required String gid,
-//   required String uid,
-//   required String uploaderName,
-//   required List<File> files,
-// }) async {
-//   state = state.copyWith(
-//     items: files.map((f) => UploadItem(f)).toList(),
-//     isUploading: true,
-//     error: null,
-//   );
-//   try {
-//     await ref.read(memoriesRepoProvider).uploadMixed(
-//       gid: gid,
-//       uid: uid,
-//       uploaderName: uploaderName,
-//       files: files,
-//       onProgress: (index, p) {
-//         final items = [...state.items];
-//         items[index].progress = p;
-//         state = state.copyWith(items: items);
-//       },
-//     );
-//     state = UploadState(items: [], isUploading: false);
-//   } catch (e) {
-//     state = state.copyWith(isUploading: false, error: e.toString());
-//   }
-// }
-
 }
 
 final memoriesUploadControllerProvider =

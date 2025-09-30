@@ -101,18 +101,23 @@ class Poll {
   final String createdBy;
   final DateTime createdAt;
   final DateTime closesAt;
+  final DateTime? closedAt;                 // 👈 NEW
   final PollStatus status;
 
   final List<PollLocation> locations;
   final List<PollTimeSlot> timeSlots;
 
-  /// denormalized vote counts for quick charts
-  final Map<String, int> countLocation; // {locId: votes}
-  final Map<String, int> countTime; // {timeId: votes}
+  /// server-maintained counts
+  final Map<String, int> countLocation;     // {locId: votes}
+  final Map<String, int> countTime;         // {timeId: votes}
 
-  /// winners filled when closed
+  /// winners filled by server on close
   final String? winnerLocationId;
   final String? winnerTimeSlotId;
+
+  /// early-close conditions
+  final List<String> requiredVoters;        // 👈 NEW (snapshot at creation)
+  final double? minQuorum;                  // 👈 NEW (0..1), optional
 
   const Poll({
     required this.id,
@@ -122,11 +127,14 @@ class Poll {
     required this.createdBy,
     required this.createdAt,
     required this.closesAt,
+    required this.closedAt,
     required this.status,
     required this.locations,
     required this.timeSlots,
     required this.countLocation,
     required this.countTime,
+    required this.requiredVoters,
+    required this.minQuorum,
     this.winnerLocationId,
     this.winnerTimeSlotId,
   });
@@ -136,6 +144,7 @@ class Poll {
   factory Poll.fromDoc(DocumentSnapshot d) {
     final m = d.data()! as Map<String, dynamic>;
     final counts = (m['counts'] ?? {}) as Map<String, dynamic>;
+    final winners = (m['winners'] ?? {}) as Map<String, dynamic>;
     return Poll(
       id: d.id,
       circleId: m['circleId'] as String,
@@ -144,6 +153,7 @@ class Poll {
       createdBy: m['createdBy'] as String,
       createdAt: (m['createdAt'] as Timestamp).toDate(),
       closesAt: (m['closesAt'] as Timestamp).toDate(),
+      closedAt: (m['closedAt'] is Timestamp) ? (m['closedAt'] as Timestamp).toDate() : null, // 👈
       status: _statusFromString(m['status'] as String? ?? 'open'),
       locations: (m['locations'] as List)
           .map((e) => PollLocation.fromMap(Map<String, dynamic>.from(e)))
@@ -154,10 +164,11 @@ class Poll {
       countLocation:
           Map<String, int>.from((counts['location'] ?? <String, int>{})),
       countTime: Map<String, int>.from((counts['time'] ?? <String, int>{})),
-      winnerLocationId:
-          (m['winners'] as Map<String, dynamic>?)?['locationId'] as String?,
-      winnerTimeSlotId:
-          (m['winners'] as Map<String, dynamic>?)?['timeSlotId'] as String?,
+      winnerLocationId: winners['locationId'] as String?,
+      winnerTimeSlotId: winners['timeSlotId'] as String?,
+      requiredVoters:
+          (m['requiredVoters'] as List?)?.map((e) => e.toString()).toList() ?? const [], // 👈
+      minQuorum: (m['minQuorum'] is num) ? (m['minQuorum'] as num).toDouble() : null,     // 👈
     );
   }
 
@@ -168,6 +179,7 @@ class Poll {
         'createdBy': createdBy,
         'createdAt': Timestamp.fromDate(createdAt),
         'closesAt': Timestamp.fromDate(closesAt),
+        if (closedAt != null) 'closedAt': Timestamp.fromDate(closedAt!),     // 👈
         'status': _statusToString(status),
         'locations': locations.map((e) => e.toMap()).toList(),
         'timeSlots': timeSlots.map((e) => e.toMap()).toList(),
@@ -179,14 +191,19 @@ class Poll {
           if (winnerLocationId != null) 'locationId': winnerLocationId,
           if (winnerTimeSlotId != null) 'timeSlotId': winnerTimeSlotId,
         },
+        'requiredVoters': requiredVoters,   // 👈
+        if (minQuorum != null) 'minQuorum': minQuorum, // 👈
       };
 
   Poll copyWith({
     PollStatus? status,
+    DateTime? closedAt,
     String? winnerLocationId,
     String? winnerTimeSlotId,
     Map<String, int>? countLocation,
     Map<String, int>? countTime,
+    List<String>? requiredVoters,
+    double? minQuorum,
   }) =>
       Poll(
         id: id,
@@ -196,11 +213,14 @@ class Poll {
         createdBy: createdBy,
         createdAt: createdAt,
         closesAt: closesAt,
+        closedAt: closedAt ?? this.closedAt,
         status: status ?? this.status,
         locations: locations,
         timeSlots: timeSlots,
         countLocation: countLocation ?? this.countLocation,
         countTime: countTime ?? this.countTime,
+        requiredVoters: requiredVoters ?? this.requiredVoters,
+        minQuorum: minQuorum ?? this.minQuorum,
         winnerLocationId: winnerLocationId ?? this.winnerLocationId,
         winnerTimeSlotId: winnerTimeSlotId ?? this.winnerTimeSlotId,
       );

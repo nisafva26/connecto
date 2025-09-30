@@ -209,6 +209,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           dropdownIconPosition: IconPosition.leading,
           initialCountryCode: 'AE',
           onCountryChanged: (value) {
+            log('value : $value');
             setState(() {
               countryPhoneLength = value.minLength;
             });

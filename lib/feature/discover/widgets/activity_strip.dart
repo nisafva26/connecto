@@ -42,7 +42,7 @@ class _ActivityStripState extends State<ActivityStrip> {
 
   double _parallaxForIndex(BuildContext context, int index) {
     // where the card sits in the scrollable content
-    final itemLeft = _hPad + index * (_cardWidth + _gap);
+    final itemLeft = _hPad + (index)* (_cardWidth + _gap);
     final itemCenter = itemLeft + _cardWidth / 2;
 
     // viewport

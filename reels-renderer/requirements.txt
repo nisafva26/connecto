@@ -1,0 +1,16 @@
+fastapi==0.111.0
+uvicorn==0.30.1
+pydantic==2.7.1
+
+# GCS
+google-cloud-storage==2.16.0
+google-cloud-firestore==2.16.0
+
+# MoviePy & its usual runtime deps
+moviepy==1.0.3
+numpy==1.26.4
+pillow==9.5.0
+imageio==2.34.0
+imageio-ffmpeg==0.4.9
+tqdm==4.66.4
+proglog==0.1.10

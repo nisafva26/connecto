@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class CommonTransparentAppBar extends ConsumerWidget implements PreferredSizeWidget {
+class CommonTransparentAppBar extends ConsumerWidget
+    implements PreferredSizeWidget {
   const CommonTransparentAppBar({super.key});
 
   @override
@@ -12,7 +13,7 @@ class CommonTransparentAppBar extends ConsumerWidget implements PreferredSizeWid
     final userAsync = ref.watch(currentUserProvider);
 
     return Container(
-      color:  Colors.transparent,
+      color: Colors.transparent,
       padding: const EdgeInsets.symmetric(horizontal: 23).copyWith(top: 40),
       child: Row(
         children: [
@@ -28,7 +29,7 @@ class CommonTransparentAppBar extends ConsumerWidget implements PreferredSizeWid
                 //   ),
                 // ),
                 Container(
-                 decoration: BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
@@ -97,10 +98,16 @@ class CommonTransparentAppBar extends ConsumerWidget implements PreferredSizeWid
       children: [
         Text(title,
             style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w600, color: color,fontFamily: "Inter")),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: color,
+                fontFamily: "Inter")),
         Text(subtitle,
             style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w500, color: subColor)),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.white,
+            )),
       ],
     );
   }

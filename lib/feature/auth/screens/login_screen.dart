@@ -31,7 +31,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? phoneNumber;
   bool isPhoneValid = false;
   int countryPhoneLength = 10;
-  String countryPhoneCode = '91';
+  String countryPhoneCode = '971';
   Country? selectedCountry;
 
   // void _validatePhoneNumber(String? number, bool isValid) {
@@ -53,7 +53,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             '+$countryPhoneCode${phoneController.text.trim()}', ref);
       } else {
         log('phone lenght : ${phoneController.text.length} - ${phoneController.text}');
-        log('country length : ${countryPhoneLength}');
+        log('country length : $countryPhoneLength');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Please enter a valid phone number")),
         );
@@ -66,11 +66,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _setDefaultCountryFromLocale(BuildContext context) {
+    log('passed phone value ": $countryPhoneCode');
     if (selectedCountry == null) {
       final locale = PlatformDispatcher.instance.locale;
       final countryCode = locale.countryCode; // e.g., 'AE'
+      
 
       log('local country code : $countryCode');
+      log('before country example lenght : $countryPhoneLength');
 
       if (countryCode != null) {
         final country = CountryService().getAll().firstWhere(
@@ -91,7 +94,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
         setState(() {
           selectedCountry = country;
+          countryPhoneCode = country.phoneCode;
+          countryPhoneLength = country.example.length;
         });
+
+        log("after country length : $countryPhoneLength");
       }
     }
   }
@@ -105,6 +112,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    log('phone code : $countryPhoneCode');
 
     ref.listen<AuthState>(authProvider, (previous, next) {
       if (next == AuthState.authenticated) {

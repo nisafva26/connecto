@@ -1,7 +1,10 @@
+import 'dart:developer';
+
 import 'package:connecto/feature/gatherings/models/gathering_model.dart';
 import 'package:connecto/feature/gatherings/widgets/travel_status.dart';
 import 'package:connecto/helper/get_initials.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class GatheringInviteeLsitWidget extends StatelessWidget {
   const GatheringInviteeLsitWidget(
@@ -20,6 +23,8 @@ class GatheringInviteeLsitWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    log('invitee eta : $inviteeETAs');
+    log("invitee : $inviteeEntries");
     return ListView.separated(
       shrinkWrap: true,
       physics: NeverScrollableScrollPhysics(), // let parent scroll
@@ -91,7 +96,7 @@ class GatheringInviteeLsitWidget extends StatelessWidget {
               ],
             ),
             Spacer(),
-            if (gathering.status != 'ended')
+            // if (gathering.status != 'ended')
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -104,8 +109,19 @@ class GatheringInviteeLsitWidget extends StatelessWidget {
                         fontSize: 13,
                       ),
                     ),
+                      
+                  // This is the Firestore arrival status
+                  if (invitee.arrivalStatus != null)
+                    Text(
+                     'Backend status :${invitee.arrivalStatus!}' ,
+                      style: TextStyle(
+                        color: Color(0xFF2DFFA2),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),  
                   if (eta != null) SizedBox(height: 4),
-                  if (eta != null)
+                  if (eta != null && gathering.status != 'ended')
                     Text(
                       '$eta mins away',
                       style: TextStyle(
@@ -113,6 +129,17 @@ class GatheringInviteeLsitWidget extends StatelessWidget {
                           fontSize: 12,
                           fontFamily: 'Inter'),
                     ),
+
+                    // Display the arrival timestamp if it exists
+                  if (invitee.arrivalTimestamp != null)
+                    Text(
+                      'Arrived at: ${DateFormat.Hm().format(invitee.arrivalTimestamp!)}',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                        fontFamily: 'Inter',
+                      ),
+                    ),  
                 ],
               )
             // if (eta != null) ...[

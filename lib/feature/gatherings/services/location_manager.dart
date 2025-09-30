@@ -17,38 +17,6 @@ class LocationManager {
 
   StreamSubscription<Position>? _positionSubscription;
 
-  // void start(String gatheringId, DateTime gatheringTime) async {
-  //   final uid = FirebaseAuth.instance.currentUser!.uid;
-  //   final gatheringDoc =
-  //       FirebaseFirestore.instance.collection('gatherings').doc(gatheringId);
-
-  //   // Listen to sharing toggle in invitees map
-  //   gatheringDoc.snapshots().listen((doc) async {
-  //     final data = doc.data();
-  //     if (data == null) return;
-
-  //     final inviteeMap = data['invitees'] as Map<String, dynamic>;
-  //     final sharing = inviteeMap[uid]?['sharing'] ?? true;
-
-  //     log("inside loc manager");
-  //     log('is sharing : ? $sharing');
-
-  //     if (sharing) {
-  //       // Start timer only if gathering is 1 hour away or less
-  //       final now = DateTime.now();
-  //       final diff = gatheringTime.difference(now);
-  //       if (diff <= Duration(hours: 1)) {
-  //         log('difference less than one hour , tracking starts : $diff');
-  //         _startLocationUpdates(gatheringId, uid);
-  //       } else {
-  //         log('time is not yet or over :  $diff');
-  //       }
-  //     } else {
-  //       log('location turned off : stopping timer');
-  //       stop(); // Stop if sharing is turned off
-  //     }
-  //   });
-  // }
 
   void start(String gatheringId) async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
@@ -182,8 +150,16 @@ class LocationManager {
         eventLng,
       );
 
-      if (distance < 100) {
-        log("✅ User has reached venue. Stopping tracking.");
+      if (distance < 300) {
+          log("✅ User has reached venue. Stopping tracking.");
+      final gatheringDoc =
+          FirebaseFirestore.instance.collection('gatherings').doc(gatheringId);
+
+      // Update the user's invitee status to 'arrived' with a timestamp
+      await gatheringDoc.update({
+        'invitees.$userId.arrivalStatus': 'arrived',
+        'invitees.$userId.arrivalTimestamp': Timestamp.now(),
+      });
         stop();
         return;
       }
@@ -207,38 +183,5 @@ class LocationManager {
     _positionSubscription = null;
   }
 
-  // void _startLocationUpdates(String gatheringId, String userId) async {
-  //   _timer?.cancel(); // Clear previous
-  //   log('====inside start location updates====');
-  //   // final hasPermission = await _checkPermissions();
-  //   // log('has permission : $hasPermission');
-  //   // if (!hasPermission) {
-  //   //   log("=====Background location permission denied.=======");
-  //   //   return;
-  //   // }
-  //   // await Geolocator.requestPermission();
-  //   _timer = Timer.periodic(Duration(seconds: 15), (timer) async {
-  //     log("inside timer...");
-  //     final position = await Geolocator.getCurrentPosition(
-  //       desiredAccuracy: LocationAccuracy.high,
-  //     );
-
-  //     final activeRef = FirebaseFirestore.instance
-  //         .collection('activeGatherings')
-  //         .doc(gatheringId)
-  //         .collection('participants')
-  //         .doc(userId);
-
-  //     await activeRef.set({
-  //       'lat': position.latitude,
-  //       'lng': position.longitude,
-  //       'lastUpdated': Timestamp.now(),
-  //     }, SetOptions(merge: true));
-  //   });
-  // }
-
-  // void stop() {
-  //   _timer?.cancel();
-  //   _timer = null;
-  // }
+  
 }
