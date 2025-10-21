@@ -136,17 +136,19 @@ class NotificationHandler {
     } else if (route == 'groupPing') {
       final circleId = message.data['circleId'];
       _vibrateWithPattern(vibrationRaw);
-      GoRouter.of(navigatorKey.currentContext!).go('/dummy');
-      Future.delayed(Duration(milliseconds: 10), () {
-        GoRouter.of(navigatorKey.currentContext!).go('/bond', extra: 1);
-      });
+      // GoRouter.of(navigatorKey.currentContext!).go('/dummy');
+      // Future.delayed(Duration(milliseconds: 10), () {
+      //   log('===after 10 second delay , navigating to bond');
+      //   GoRouter.of(navigatorKey.currentContext!).go('/bond', extra: 1);
+      // });
 
-      // GoRouter.of(navigatorKey.currentContext!).pushReplacementNamed(
-      //   'bond',
-      //   extra: 1,
-      // );
+      GoRouter.of(navigatorKey.currentContext!).pushReplacementNamed(
+        'bond',
+        extra: 1,
+      );
     } else if (route == 'accessRequest') {
-      GoRouter.of(navigatorKey.currentContext!).go('/profile/admin-access-requests');
+      GoRouter.of(navigatorKey.currentContext!)
+          .go('/profile/admin-access-requests');
     }
 
     // Add more route handling logic here as needed

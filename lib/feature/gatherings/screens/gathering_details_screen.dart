@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -13,6 +14,7 @@ import 'package:connecto/feature/gatherings/models/gathering_model.dart';
 import 'package:connecto/feature/gatherings/providers/public_gathering_provider.dart';
 import 'package:connecto/feature/gatherings/screens/select_location_screen.dart';
 import 'package:connecto/feature/gatherings/services/location_manager.dart';
+import 'package:connecto/feature/gatherings/services/mapbox_directions.dart';
 import 'package:connecto/feature/gatherings/services/mapbox_eta.dart';
 import 'package:connecto/feature/gatherings/widgets/custom_marker.dart';
 import 'package:connecto/feature/gatherings/widgets/gathering_invitee_list_widget.dart';
@@ -24,12 +26,14 @@ import 'package:connecto/helper/toast_alert.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_google_maps_webservices/places.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:lottie/lottie.dart';
 // import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as map;
 
@@ -64,11 +68,24 @@ class GatheringDetailsScreen extends ConsumerStatefulWidget {
 class _GatheringDetailsScreenState
     extends ConsumerState<GatheringDetailsScreen> {
   double _currentSheetSize = 0.7;
+  bool userInteractingWithMap = false;
+  // State to track if the map is currently being dragged/panned/zoomed by the user
+  bool isMapMovingByUser = false;
+
+// State to track if the camera was programmatically moved (e.g., by flyTo/setCamera)
+  bool cameraWasMovedProgrammatically = false;
+
+  Offset? screenPosition;
 
   final DraggableScrollableController draggableController =
       DraggableScrollableController();
 
   List<map.PointAnnotation> participantMarkers = [];
+
+  // New member for managing polylines (routes)
+  map.PolylineAnnotationManager? polylineAnnotationManager;
+// New list to store references to the drawn polylines
+  List<map.PolylineAnnotation> participantRoutes = [];
   @override
   void initState() {
     super.initState();
@@ -83,8 +100,6 @@ class _GatheringDetailsScreenState
       ref.read(locationManagerProvider).start(widget.gatheringId);
     });
   }
-
-  // MapboxMapController? mapController;
 
   // // New function to add the route line
   // void _addRouteLine(List<LatLng> coordinates) {
@@ -390,7 +405,71 @@ class _GatheringDetailsScreenState
       }
     }
 
-  
+    // const String SOURCE_ID = 'participant-source';
+    // const String CLUSTER_CIRCLE_LAYER_ID = 'clusters';
+    // const String CLUSTER_COUNT_LAYER_ID = 'cluster-counts';
+    // const String UNCLUSTERED_LAYER_ID = 'unclustered-participants';
+    // const String MARKER_IMAGE_ID = 'participant-marker-image';
+
+    // Future<void> setupParticipantLayers(map.MapboxMap mapController) async {
+    //   // 1. The GeoJSON Source with clustering enabled
+    //   await mapController.style.addSource(map.GeoJsonSource(
+    //     id: SOURCE_ID,
+    //     // ✅ FIX 2: Use jsonEncode to provide a String for the data parameter
+    //     // Use map.Point as the generic type
+    //     data:
+    //         jsonEncode(map.FeatureCollection<map.Point>(features: []).toJson()),
+    //     cluster: true, // 👈 Clustering ON
+    //     clusterMaxZoom: 14,
+    //     clusterRadius: 50,
+    //   ));
+
+    //   // 2. Cluster Circle Layer (The colored circles)
+    //   await mapController.style.addLayer(map.CircleLayer(
+    //       id: CLUSTER_CIRCLE_LAYER_ID,
+    //       sourceId: SOURCE_ID,
+
+    //       // ✅ FIX 3: Expressions as standard Style Spec Lists (String operator)
+    //       filter: [
+    //         "has",
+    //         'point_count'
+    //       ], // Only show where 'point_count' exists (i.e., clusters)
+
+    //       circleColor: Colors.yellow.value,
+    //       circleRadius: 20));
+
+    //   // 3. Cluster Count Layer (The text inside the circles)
+    //   await mapController.style.addLayer(map.SymbolLayer(
+    //     id: CLUSTER_COUNT_LAYER_ID,
+    //     sourceId: SOURCE_ID,
+    //     filter: ["has", 'point_count'],
+    //     textField: 'check', // Display abbreviated count (e.g., 1k)
+    //     textSize: 12,
+    //     textColor: 0xFFFFFFFF, // White
+    //     textIgnorePlacement: true,
+    //     textAllowOverlap: true,
+    //   ));
+
+    //   // 4. Unclustered Participants Layer (Individual markers)
+    //   // This replaces your original PointAnnotation logic
+    //   await mapController.style.addLayer(map.SymbolLayer(
+    //     id: UNCLUSTERED_LAYER_ID,
+    //     sourceId: SOURCE_ID,
+
+    //     // Filter to only show points WITHOUT the 'point_count' property
+    //     filter: [
+    //       "!",
+    //       ["has", 'point_count']
+    //     ],
+
+    //     iconImage:
+    //         MARKER_IMAGE_ID, // Use the ID of the image registered in onMapCreated
+    //     iconSize: 1.5,
+    //     iconAnchor:
+    //         map.IconAnchor.BOTTOM, // Use the correct anchor enum if needed
+    //     iconAllowOverlap: true,
+    //   ));
+    // }
 
     void setupParticipantListener() async {
       if (!mapReady || participantAnnotationManager == null || !mounted) {
@@ -429,6 +508,13 @@ class _GatheringDetailsScreenState
 
         try {
           await participantAnnotationManager!.deleteAll();
+
+          // 🆕 Clear previous route lines
+          if (polylineAnnotationManager != null &&
+              participantRoutes.isNotEmpty) {
+            await polylineAnnotationManager!.deleteAll();
+            participantRoutes.clear();
+          }
           // 🆕 Remove previous markers safely before adding new ones
           if (participantMarkers.isNotEmpty) {
             await participantAnnotationManager?.deleteAll();
@@ -455,6 +541,10 @@ class _GatheringDetailsScreenState
 
             final fullName = userDoc.data()?['fullName'] ?? 'NA';
             final initials = getInitials(fullName);
+            // The pin image is 100 wide by 120 high.
+// The anchor should be at (50, 120) to point the tip at the location.
+            const pinAnchorX = 0.5; // 50% of the width (50 / 100)
+            const pinAnchorY = 1.0; // 100% of the height (120 / 120)
 
             final Uint8List customMarker =
                 await createMarkerFromInitials(initials);
@@ -470,11 +560,35 @@ class _GatheringDetailsScreenState
             //   ),
             // );
 
+            // 🆕 1. Fetch the route geometry
+            final routePoints =
+                await fetchRoute(userLng, userLat, eventLng, eventLat);
+
+            if (routePoints != null && routePoints.isNotEmpty) {
+              // 🆕 2. Create and store the polyline annotation
+              final polyline = await polylineAnnotationManager!.create(
+                map.PolylineAnnotationOptions(
+                  // 🐛 FIX 1: Use 'geometry' with a LineString object
+                  geometry: map.LineString(coordinates: routePoints),
+
+                  // 🐛 FIX 2: Convert hex color string to an int (0xRRGGBB format)
+                  lineColor:
+                      const Color(0xFF5B86E5).value, // Convert '#5B86E5' to int
+
+                  lineWidth: 4.0,
+                  lineOpacity: 0.8,
+                ),
+              );
+              participantRoutes.add(polyline); // 🆕 Save polyline reference
+            }
+
             // 🆕 Create and store marker reference for future deletion
             final newMarker = await participantAnnotationManager!.create(
               map.PointAnnotationOptions(
                 geometry: userPoint,
                 image: customMarker,
+                iconAnchor: map.IconAnchor.BOTTOM,
+                iconOffset: [pinAnchorX, pinAnchorY],
               ),
             );
 
@@ -492,22 +606,24 @@ class _GatheringDetailsScreenState
           //     cameraOptions, map.MapAnimationOptions(duration: 1000));
 
           // ✅ Adjust camera
-          if (allPoints.length == 1) {
-            // Only event point present (before 1-hour mark)
-            await mapboxMap.setCamera(map.CameraOptions(
-              center: eventPoint,
-              zoom: 10.0, // 👈 Better default for solo location view
-            ));
-          } else {
-            // Multiple points – fit all
-            final cameraOptions = await mapboxMap.cameraForCoordinates(
-              allPoints,
-              map.MbxEdgeInsets(top: 50, bottom: 100, left: 50, right: 50),
-              0,
-              0,
-            );
-            await mapboxMap.flyTo(
-                cameraOptions, map.MapAnimationOptions(duration: 1000));
+          if (!isMapMovingByUser) {
+            if (allPoints.length == 1) {
+              // Only event point present (before 1-hour mark)
+              await mapboxMap.setCamera(map.CameraOptions(
+                center: eventPoint,
+                zoom: 10.0, // 👈 Better default for solo location view
+              ));
+            } else {
+              // Multiple points – fit all
+              final cameraOptions = await mapboxMap.cameraForCoordinates(
+                allPoints,
+                map.MbxEdgeInsets(top: 50, bottom: 100, left: 50, right: 50),
+                0,
+                0,
+              );
+              await mapboxMap.flyTo(
+                  cameraOptions, map.MapAnimationOptions(duration: 1000));
+            }
           }
         } catch (e, st) {
           log("❌ Error creating user markers: $e", stackTrace: st);
@@ -671,7 +787,10 @@ class _GatheringDetailsScreenState
               .where((entry) => entry.value.status == 'pending')
               .toList();
 
-          log('==gathering id : ${gathering.id}');
+          // log('==gathering id : ${gathering.id}');
+
+          log('==is user moving map ? $isMapMovingByUser');
+          log('did camera moved programatically ? $cameraWasMovedProgrammatically');
 
           // log('isPublic ? ${gathering.isPublic}');
           return Scaffold(
@@ -690,59 +809,115 @@ class _GatheringDetailsScreenState
                       animation:
                           Listenable.merge([ValueNotifier(_currentSheetSize)]),
                       builder: (context, _) {
-                        return Container(
-                          height: MediaQuery.of(context).size.height *
-                              (1 - _currentSheetSize),
-                          // color: Colors.yellow,
-                          width: MediaQuery.of(context).size.width,
-                          child: map.MapWidget(
-                              key: ValueKey("map-${gathering.id}"),
-                              // styleUri: map.MapboxStyles.LIGHT,
-                              cameraOptions: map.CameraOptions(
-                                center: map.Point(
-                                  coordinates: map.Position(
-                                    gathering.location.lng,
-                                    gathering.location.lat,
-                                  ),
-                                ),
-                                zoom: 10,
-                              ),
-                              onMapCreated: (mapController) async {
-                                mapboxMap = mapController;
-                                final ByteData bytes = await rootBundle
-                                    .load('assets/images/map_icon.png');
-                                final Uint8List imageData =
-                                    bytes.buffer.asUint8List();
-
-                                // Event Marker
-                                final eventAnnotationManager =
-                                    await mapController.annotations
-                                        .createPointAnnotationManager();
-
-                                await eventAnnotationManager.create(
-                                  map.PointAnnotationOptions(
-                                    geometry: map.Point(
+                        return Stack(
+                          children: [
+                            Container(
+                              height: MediaQuery.of(context).size.height *
+                                  (1 - _currentSheetSize),
+                              // color: Colors.yellow,
+                              width: MediaQuery.of(context).size.width,
+                              child: map.MapWidget(
+                                  key: ValueKey("map-${gathering.id}"),
+                                  // styleUri: map.MapboxStyles.LIGHT,
+                                  cameraOptions: map.CameraOptions(
+                                    center: map.Point(
                                       coordinates: map.Position(
                                         gathering.location.lng,
                                         gathering.location.lat,
                                       ),
                                     ),
-                                    image: imageData,
-                                    iconSize: 1.5,
+                                    zoom: 10,
                                   ),
-                                );
+                                  onCameraChangeListener:
+                                      (cameraChangedEventData) async {
+                                    final screenCoords = await mapboxMap!
+                                        .pixelForCoordinate(map.Point(
+                                            coordinates: map.Position(
+                                                gathering.location.lng,
+                                                gathering.location.lat)));
+                                    if (screenCoords != null) {
+                                      setState(() {
+                                        screenPosition = Offset(
+                                            screenCoords.x, screenCoords.y);
+                                      });
+                                    }
+                                  },
+                                  onZoomListener: (context) {
+                                    if (!isMapMovingByUser) {
+                                      setState(() {
+                                        isMapMovingByUser =
+                                            true; // User has taken control!
+                                      });
+                                    }
+                                  },
+                                  onScrollListener: (context) {
+                                    // This fires when the user initiates a drag/pan/zoom
+                                    if (!isMapMovingByUser) {
+                                      setState(() {
+                                        isMapMovingByUser =
+                                            true; // User has taken control!
+                                      });
+                                    }
+                                  },
+                                  // onMapIdleListener: (mapIdleEventData) {
+                                  //   // This fires when the camera motion (user or programmatic) stops.
+                                  //   // If the map was moved by the user, reset the flag.
+                                  //   if (isMapMovingByUser) {
+                                  //     // The user has finished their pan/zoom gesture.
+                                  //     setState(() {
+                                  //       isMapMovingByUser = false;
+                                  //       // At this point, you might want to consider the user has "taken over"
+                                  //       // and you should stop auto-centering in the future.
+                                  //       // We'll manage this in the listener check below.
+                                  //     });
+                                  //   }
 
-                                participantAnnotationManager =
-                                    await mapController.annotations
-                                        .createPointAnnotationManager();
+                                  //   // Also reset the programmatic flag when the programmatic animation stops
+                                  //   if (cameraWasMovedProgrammatically) {
+                                  //     cameraWasMovedProgrammatically = false;
+                                  //   }
+                                  // },
+                                  onMapCreated: (mapController) async {
+                                    mapboxMap = mapController;
 
-                                mapReady = true;
+                                    final ByteData bytes = await rootBundle
+                                        .load('assets/images/map_icon.png');
+                                    final Uint8List imageData =
+                                        bytes.buffer.asUint8List();
 
-                                setupParticipantListener();
+                                    // Event Marker
 
-                                //   _fetchAndDrawRoute(
-                                //       gathering); // Call it here when the map is ready
-                              }),
+                                    participantAnnotationManager =
+                                        await mapController.annotations
+                                            .createPointAnnotationManager();
+
+                                    // 🆕 Initialize the PolylineAnnotationManager
+                                    polylineAnnotationManager =
+                                        await mapController.annotations
+                                            .createPolylineAnnotationManager();
+
+                                    mapReady = true;
+
+                                    setupParticipantListener();
+
+                                    //   _fetchAndDrawRoute(
+                                    //       gathering); // Call it here when the map is ready
+                                  }),
+                            ),
+                            if (screenPosition != null)
+                              Positioned(
+                                left: screenPosition!.dx -
+                                    25, // center horizontally (width / 2)
+                                top: screenPosition!.dy - 40,
+                                // shift up to align pin tip (height)
+                                child: SizedBox(
+                                  width: 50,
+                                  height: 50,
+                                  child: Lottie.asset(
+                                      'assets/lottie/office-location-pin.json'),
+                                ),
+                              ),
+                          ],
                         );
                       }),
                   DraggableScrollableSheet(
@@ -1844,22 +2019,24 @@ class _GatheringDetailsScreenState
                   ),
                   Row(
                     children: [
-                      if (isUpcoming)
-                        Text(
-                          'Starts in ${formatDuration(difference)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
+                      if (gathering.status != 'cancelled') ...[
+                        if (isUpcoming)
+                          Text(
+                            'Starts in ${formatDuration(difference)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          )
+                        else
+                          Text(
+                            'Started ${formatDuration(difference)} ago',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
                           ),
-                        )
-                      else
-                        Text(
-                          'Started ${formatDuration(difference)} ago',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
+                      ],
                       SizedBox(width: 8),
                       if (gathering.status == 'confirmed')
                         Container(
@@ -1879,7 +2056,8 @@ class _GatheringDetailsScreenState
                             ),
                           ),
                         ),
-                      if (gathering.status == 'ended')
+                      if (gathering.status == 'ended' ||
+                          gathering.status == 'cancelled')
                         Container(
                           padding:
                               EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1888,7 +2066,9 @@ class _GatheringDetailsScreenState
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            'Event completed',
+                            gathering.status == 'cancelled'
+                                ? 'Event cancelled by host'
+                                : 'Event completed',
                             style: TextStyle(
                               fontSize: 10,
                               fontFamily: 'Inter',
@@ -1969,22 +2149,3 @@ String formatDuration(Duration diff) {
     return '${minutes}m';
   }
 }
-
-
-
-  // TextButton(
-                                          //   onPressed: () async {
-                                          //     openMapsDirections(
-                                          //         gathering.location.lat,
-                                          //         gathering.location.lng);
-                                          //   },
-                                          //   child: Text("Directions →",
-                                          //       style: TextStyle(
-                                          //         color:
-                                          //             const Color(0xFF03FFE2),
-                                          //         fontSize: 14,
-                                          //         fontFamily: 'Inter',
-                                          //         fontWeight: FontWeight.w600,
-                                          //         height: 1.43,
-                                          //       )),
-                                          // )

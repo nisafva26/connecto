@@ -536,7 +536,7 @@ class _CreateGatheringCircleScreenState
                 ),
               ],
 
-              if (selectedFriends.isNotEmpty || selectedCircles.isNotEmpty)
+              if (selectedFriends.isNotEmpty || selectedCircles.isNotEmpty || selectedContacts.isNotEmpty )
                 buildSelectedInviteesList(),
 
               // SizedBox(height: 16),

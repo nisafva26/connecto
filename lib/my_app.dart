@@ -26,6 +26,7 @@ import 'package:connecto/feature/gatherings/screens/location_details_gathering.d
 import 'package:connecto/feature/gatherings/screens/select_location_gathering.dart';
 import 'package:connecto/feature/gatherings/screens/select_location_screen.dart';
 import 'package:connecto/feature/gatherings/widgets/location_details_popup.dart';
+import 'package:connecto/feature/onboarding/screens/onboarding_screen.dart';
 import 'package:connecto/feature/pings/screens/ping_chat_screen.dart';
 import 'package:connecto/feature/poll/screens/create_poll_circle.dart';
 import 'package:connecto/feature/video_creation/screens/video_from_photos_screen.dart';
@@ -37,6 +38,7 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ✅ Preserve navigation state
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -57,6 +59,9 @@ final userDataProvider = FutureProvider.family<DocumentSnapshot?, String>(
   },
 );
 
+final isGuestProvider = StateProvider<bool>((_) => false);
+
+
 final lastRouteProvider = StateProvider<String>((ref) => '/bond');
 
 final accessRequestProvider = FutureProvider.family<DocumentSnapshot?, String>(
@@ -72,6 +77,11 @@ final accessRequestProvider = FutureProvider.family<DocumentSnapshot?, String>(
   },
 );
 
+final hasSeenOnboardingProvider = FutureProvider<bool>((ref) async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getBool('has_seen_onboarding') ?? false;
+});
+
 // ✅ Define Router Outside MyApp
 final goRouterProvider = Provider<GoRouter>((ref) {
   final user = ref.watch(authStateProvider).asData?.value;
@@ -80,15 +90,42 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ? ref.watch(userDataProvider(userId)).asData?.value
       : null; // ✅ Only watch if userId is not null
 
+  final hasSeenOnboardingAsync = ref.watch(hasSeenOnboardingProvider);
+  final hasSeenOnboarding = hasSeenOnboardingAsync.asData?.value ?? false;
+
+  log('===has see onboarding ? : $hasSeenOnboarding');
+
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     debugLogDiagnostics: false,
+    
     initialLocation: '/', // ✅ Start from last route
     observers: [NavigatorObserver()],
     // refreshListenable: GoRouterRefreshNotifier(ref),
     redirect: (context, state) {
+      final uriStr = state.uri.toString();
+      final onOnboarding = uriStr.contains('/onboarding');
+      final onRootLogin = uriStr == '/' ||
+          uriStr.contains('login'); // adjust if your login is `/`
       // log('user $user');
-      if (user == null) return '/';
+      // if (user == null) return '/';
+      // If not logged in, ensure onboarding is shown once
+
+      // Not logged in
+      if (user == null) {
+        if (!hasSeenOnboarding) {
+          // If first time, keep them on onboarding
+          if (!onOnboarding) return '/onboarding';
+          return null;
+        }
+
+        // Already seen onboarding → keep them on login
+        if (onOnboarding) {
+          return '/'; // move off onboarding if they somehow landed there
+        }
+        if (!onRootLogin) return '/'; // force to login when not on it
+        return null;
+      }
 
       // if (user == null) {
       //   final phone = state.uri.queryParameters['phone'] ??
@@ -117,6 +154,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     },
 
     routes: [
+      GoRoute(
+        path: '/onboarding',
+        builder: (context, state) => OnboardingScreen(),
+      ),
       GoRoute(
         path: '/access-request',
         builder: (context, state) => AccessRequestScreen(),
@@ -168,9 +209,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             path: '/bond',
             name: 'bond',
             builder: (context, state) {
-              // final index = state.extra as int;
-              // log('=====index in gorouter====: $index');
-              return BondScreen();
+              final index = (state.extra as int?) ?? 0;
+              log('=====index in gorouter====: $index');
+              return BondScreen(
+                key: ValueKey('bond-tab-$index'),
+                initialTabIndex: index,
+              );
             },
             routes: [
               GoRoute(
@@ -641,6 +685,7 @@ class _MyAppState extends ConsumerState<MyApp> {
   Widget build(BuildContext context) {
     final router = ref.watch(goRouterProvider);
     return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
       routerDelegate: router.routerDelegate,
       routeInformationParser: router.routeInformationParser,
       routeInformationProvider: router.routeInformationProvider,

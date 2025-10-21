@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connecto/feature/auth/controller/user_details_notifier.dart';
 import 'package:connecto/feature/auth/screens/login_screen.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
@@ -82,7 +83,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> logout(WidgetRef ref,BuildContext context) async {
+  Future<void> logout(WidgetRef ref, BuildContext context) async {
     try {
       final uid = _auth.currentUser?.uid;
 
@@ -124,6 +125,58 @@ class AuthNotifier extends StateNotifier<AuthState> {
       log("✅ Logout successful.");
     } catch (e) {
       log("❌ Logout failed: $e");
+    }
+  }
+
+  Future<void> deleteAccountFlow(BuildContext context, WidgetRef ref) async {
+    // final ok = await showDialog<bool>(
+    //       context: context,
+    //       builder: (_) => AlertDialog(
+    //         title: const Text('Delete account?'),
+    //         content: const Text(
+    //             'This permanently deletes your profile and closes chats for others. '
+    //             'This action cannot be undone.'),
+    //         actions: [
+    //           TextButton(
+    //               onPressed: () => Navigator.pop(context, false),
+    //               child: const Text('Cancel')),
+    //           FilledButton(
+    //               onPressed: () => Navigator.pop(context, true),
+    //               child: const Text('Delete')),
+    //         ],
+    //       ),
+    //     ) ??
+    //     false;
+
+    // if (!ok) return;
+
+    try {
+      await FirebaseFunctions.instance.httpsCallable('deleteAccount').call({});
+      // await FirebaseAuth.instance.signOut();
+      await _auth.signOut();
+      context.go('/');
+      await Future.delayed(const Duration(milliseconds: 300));
+      log('===invalidating providersss');
+
+      // your existing invalidations
+      ref.invalidate(pendingGatheringsProvider);
+      ref.invalidate(upcomingGatheringsProvider);
+      ref.invalidate(previousGatheringsProvider);
+      ref.invalidate(userDetailsProvider);
+      ref.invalidate(userDataProvider);
+      ref.invalidate(messagesProvider);
+      ref.invalidate(chatGatheringsProvider);
+      ref.invalidate(chatFlagsProvider);
+      ref.invalidate(friendsProvider);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account deleted')),
+      );
+    } catch (e) {
+      log('erroor : $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Couldn’t delete account: $e')),
+      );
     }
   }
 }

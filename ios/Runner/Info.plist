@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Connecto</string>
+	<string>Connctd</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -47,20 +47,42 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
+	<!-- <key>NSCameraUsageDescription</key>
 	<string>We need access to your camera to capture images.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>We need access to your contacts to find friends on the app.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>We need your location even when the app is in the background.</string>
+	<string>Connectd uses your location in the background so your friends can track your live location during an ongoing gathering.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>We use your location to track gatherings.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>For maps</string>
+	<string>Connectd uses your location to show nearby gatherings and help your friends see where you are when you share your live location.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>We need access to your microphone to include audio in videos.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We need access to your photo library to select images for the video.</string>
+	<string>We need access to your photo library to select images for the video.</string> -->
+
+	<key>NSCameraUsageDescription</key>
+	<string>Connectd needs access to your camera so you can take photos and videos to share with your friends or in gatherings.</string>
+
+	<key>NSContactsUsageDescription</key>
+	<string>Connectd uses your contacts to help you find and connect with friends who already use the app.</string>
+
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Connectd uses your location in the background to share your live location with invited friends during active gatherings.</string>
+
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Connectd uses your location to keep your gathering location updated even when the app is running in the background.</string>
+
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Connectd uses your location to show gatherings and places near you for a better experience.</string>
+
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Connectd needs microphone access to let you record audio while capturing videos or moments inside the app.</string>
+
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Connectd needs photo library access so you can choose and share pictures or videos from your gallery.</string>
+
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

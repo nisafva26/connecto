@@ -6,6 +6,16 @@ import 'package:connecto/helper/get_initials.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) {
+      return this;
+    }
+    // Takes the first character, converts it to uppercase,
+    // and concatenates it with the rest of the string (substring(1)).
+    return this[0].toUpperCase() + substring(1);
+  }
+}
 class GatheringInviteeLsitWidget extends StatelessWidget {
   const GatheringInviteeLsitWidget(
       {super.key,
@@ -100,7 +110,7 @@ class GatheringInviteeLsitWidget extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (travelStatusUser != null)
+                  if (travelStatusUser != null && invitee.arrivalStatus!=null && invitee.arrivalStatus!.isEmpty)
                     Text(
                       travelStatusUser.label,
                       style: TextStyle(
@@ -111,9 +121,9 @@ class GatheringInviteeLsitWidget extends StatelessWidget {
                     ),
                       
                   // This is the Firestore arrival status
-                  if (invitee.arrivalStatus != null)
+                  if (invitee.arrivalStatus!=null && invitee.arrivalStatus!.isNotEmpty)
                     Text(
-                     'Backend status :${invitee.arrivalStatus!}' ,
+                     invitee.arrivalStatus!.capitalize() ,
                       style: TextStyle(
                         color: Color(0xFF2DFFA2),
                         fontWeight: FontWeight.w600,

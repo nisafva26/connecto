@@ -7,6 +7,7 @@ import 'package:connecto/feature/auth/controller/auth_provider.dart';
 import 'package:connecto/feature/auth/model/user_model.dart';
 import 'package:connecto/feature/dashboard/screens/access_request_admin.dart';
 import 'package:connecto/feature/dashboard/screens/bonds_screen.dart';
+import 'package:connecto/feature/dashboard/widgets/danger_action_card.dart';
 import 'package:connecto/feature/discover/screens/discover_screen.dart';
 import 'package:connecto/feature/gatherings/screens/gathering_list.dart';
 import 'package:connecto/riverpod_observers/my_app_provider.dart';
@@ -172,6 +173,7 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(currentUserProvider);
+
     final accessRequestsAsync = ref.watch(adminNotificationsProvider);
 
     return Scaffold(
@@ -196,177 +198,260 @@ class ProfileScreen extends ConsumerWidget {
               .join()
               .toUpperCase();
 
-          return Padding(
-            padding: const EdgeInsets.all(20.0).copyWith(top: 50, bottom: 50),
-            child: Column(
-              children: [
-                // Neon Glow Avatar
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withOpacity(0.6),
-                        blurRadius: 25,
-                        spreadRadius: 3,
-                      ),
-                    ],
-                  ),
-                  child: CircleAvatar(
-                    radius: 48,
-                    backgroundColor: Theme.of(context).colorScheme.tertiary,
-                    child: Text(
-                      initials,
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+          return SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0).copyWith(top: 50, bottom: 50),
+              child: Column(
+                children: [
+                  // Neon Glow Avatar
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.6),
+                          blurRadius: 25,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      radius: 48,
+                      backgroundColor: Theme.of(context).colorScheme.tertiary,
+                      child: Text(
+                        initials,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-
-                // Full Name
-                Text(
-                  user.fullName,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                  const SizedBox(height: 16),
+            
+                  // Full Name
+                  Text(
+                    user.fullName,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-
-                // Gender label
-                Text(
-                  user.gender,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white70,
+                  const SizedBox(height: 6),
+            
+                  // Gender label
+                  Text(
+                    user.gender,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
                   ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // Info Tiles
-                _buildInfoTile(
-                  context,
-                  icon: Icons.phone,
-                  label: 'Phone',
-                  value: user.phoneNumber,
-                ),
-                const SizedBox(height: 12),
-                _buildInfoTile(
-                  context,
-                  icon: Icons.group,
-                  label: 'Friends',
-                  value: '${user.friends.length} friends',
-                ),
-
-                const SizedBox(height: 12),
-                if (isAdmin) ...[
-                  // const SizedBox(height: 30),
-                  GestureDetector(
-                    onTap: () {
-                      context.go(
-                          '/profile/admin-access-requests'); // Route to detailed screen
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 0, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.tertiary,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: ListTile(
-                        leading: const Icon(Icons.verified_user,
-                            color: Color(0xFF03FFE2)),
-                        title: const Text("User Access Requests",
-                            style: TextStyle(color: Colors.white)),
-                        subtitle: accessRequestsAsync.when(
-                          data: (requests) => Text(
-                            "${requests.length} pending request's",
-                            style: const TextStyle(color: Colors.white70),
-                          ),
-                          loading: () => const Text("Loading...",
-                              style: TextStyle(color: Colors.grey)),
-                          error: (e, _) {
-                            log('error : $e');
-                            return Text("Error ",
-                                style: TextStyle(color: Colors.red));
-                          },
+            
+                  const SizedBox(height: 30),
+                   if (isAdmin) ...[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Admin',style: TextStyle(color: Colors.white,fontSize: 16,fontWeight: FontWeight.w700),)),
+                    // const SizedBox(height: 30),
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: () {
+                        context.go(
+                            '/profile/admin-access-requests'); // Route to detailed screen
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 0, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.tertiary,
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        
-                        trailing: const Icon(Icons.arrow_forward_ios,
-                            color: Colors.white38),
+                        child: ListTile(
+                          leading: const Icon(Icons.verified_user,
+                              color: Color(0xFF03FFE2)),
+                          title: const Text("User Access Requests",
+                              style: TextStyle(color: Colors.white)),
+                          subtitle: accessRequestsAsync.when(
+                            data: (requests) => Text(
+                              "${requests.length} pending request's",
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            loading: () => const Text("Loading...",
+                                style: TextStyle(color: Colors.grey)),
+                            error: (e, _) {
+                              log('error : $e');
+                              return Text("Error ",
+                                  style: TextStyle(color: Colors.red));
+                            },
+                          ),
+                          trailing: const Icon(Icons.arrow_forward_ios,
+                              color: Colors.white38),
+                        ),
+                      ),
+                    ),const SizedBox(height: 40),
+                  ],
+                   Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Account',style: TextStyle(color: Colors.white,fontSize: 16,fontWeight: FontWeight.w700),)),
+                    // const SizedBox(height: 30),
+                    const SizedBox(height: 10),
+                  
+            
+                  // Info Tiles
+                  _buildInfoTile(
+                    context,
+                    icon: Icons.phone,
+                    label: 'Phone',
+                    value: user.phoneNumber,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildInfoTile(
+                    context,
+                    icon: Icons.group,
+                    label: 'Friends',
+                    value: '${user.friends.length} friends',
+                  ),
+            
+                  const SizedBox(height: 12),
+                 
+                  DangerActionCard(
+                    onTap: () => showDeleteAccountSheet(context, ref),
+                  ),
+                  // ---- Delete Account card ----
+                  // Container(
+                  //   // margin: const EdgeInsets.only(top: 12),
+                  //   padding:
+                  //       const EdgeInsets.symmetric(horizontal: 16, vertical: 9).copyWith(top: 9),
+                  //   decoration: BoxDecoration(
+                  //     color: Theme.of(context).colorScheme.tertiary,
+                  //     borderRadius: BorderRadius.circular(16),
+                  //   ),
+                  //   // decoration: BoxDecoration(
+                  //   //   color:
+                  //   //       const Color(0xFF2B0D0D), // subtle dark red background
+                  //   //   borderRadius: BorderRadius.circular(16),
+                  //   //   border: Border.all(
+                  //   //       color: const Color(0xFFBD2D2D).withOpacity(0.4)),
+                  //   // ),
+                  //   child: ListTile(
+                  //     contentPadding: EdgeInsets.all(0),
+                  //     leading: const Icon(Icons.delete_forever,
+                  //         color: Color(0xFFFF5A5A)),
+                  //     title: const Text(
+                  //       'Delete account',
+                  //       style: TextStyle(
+                  //         color: Colors.white,
+                  //         fontWeight: FontWeight.w700,
+                  //       ),
+                  //     ),
+                  //     subtitle: const Text(
+                  //       "Permanently remove your profile and close chats for others.",
+                  //       style: TextStyle(color: Colors.white70, fontSize: 12),
+                  //     ),
+                  //     trailing: const Icon(Icons.arrow_forward_ios,
+                  //         color: Colors.white38, size: 16),
+                  //     onTap: () async {
+                  //       // simple confirm dialog here (UI-level).
+                  //       final ok = await showDialog<bool>(
+                  //             context: context,
+                  //             builder: (_) => AlertDialog(
+                  //               title: const Text('Delete account?'),
+                  //               content: const Text(
+                  //                   'This permanently deletes your profile and closes chats for others. '
+                  //                   'This action cannot be undone.'),
+                  //               actions: [
+                  //                 TextButton(
+                  //                   onPressed: () =>
+                  //                       Navigator.pop(context, false),
+                  //                   child: const Text('Cancel'),
+                  //                 ),
+                  //                 FilledButton(
+                  //                   style: FilledButton.styleFrom(
+                  //                       backgroundColor: const Color(0xFFFF5A5A)),
+                  //                   onPressed: () => Navigator.pop(context, true),
+                  //                   child: const Text('Delete'),
+                  //                 ),
+                  //               ],
+                  //             ),
+                  //           ) ??
+                  //           false;
+            
+                  //       if (!ok) return;
+            
+                  //       // call the function implemented in your AuthNotifier
+                  //       await ref
+                  //           .read(authProvider.notifier)
+                  //           .deleteAccountFlow(context, ref);
+                  //     },
+                  //   ),
+                  // ),
+            
+                  // Edit Profile (optional)
+                  // OutlinedButton.icon(
+                  //   onPressed: () {}, // future use
+                  //   icon: const Icon(Icons.edit, size: 20),
+                  //   label: const Text('Edit Profile'),
+                  //   style: OutlinedButton.styleFrom(
+                  //     foregroundColor: Theme.of(context).colorScheme.primary,
+                  //     side: BorderSide(
+                  //         color: Theme.of(context).colorScheme.primary),
+                  //     padding: const EdgeInsets.symmetric(
+                  //         horizontal: 20, vertical: 14),
+                  //     shape: RoundedRectangleBorder(
+                  //         borderRadius: BorderRadius.circular(12)),
+                  //   ),
+                  // ),
+            
+                  const SizedBox(height: 30),
+            
+                  // // Logout Button
+                  // ElevatedButton.icon(
+                  //   onPressed: () => ref.read(authProvider.notifier).logout(ref),
+                  //   icon: const Icon(Icons.logout),
+                  //   label: const Text('Logout'),
+                  //   style: ElevatedButton.styleFrom(
+                  //     backgroundColor: Colors.redAccent,
+                  //     foregroundColor: Colors.white,
+                  //     padding: const EdgeInsets.symmetric(
+                  //         horizontal: 28, vertical: 14),
+                  //     shape: RoundedRectangleBorder(
+                  //         borderRadius: BorderRadius.circular(14)),
+                  //   ),
+                  // ),
+                  // Spacer(),
+            
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () =>
+                          ref.read(authProvider.notifier).logout(ref, context),
+                      icon: const Icon(Icons.logout, color: Colors.black),
+                      label: const Text(
+                        'Logout',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xff03FFE2),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
                       ),
                     ),
                   ),
                 ],
-
-                // Edit Profile (optional)
-                // OutlinedButton.icon(
-                //   onPressed: () {}, // future use
-                //   icon: const Icon(Icons.edit, size: 20),
-                //   label: const Text('Edit Profile'),
-                //   style: OutlinedButton.styleFrom(
-                //     foregroundColor: Theme.of(context).colorScheme.primary,
-                //     side: BorderSide(
-                //         color: Theme.of(context).colorScheme.primary),
-                //     padding: const EdgeInsets.symmetric(
-                //         horizontal: 20, vertical: 14),
-                //     shape: RoundedRectangleBorder(
-                //         borderRadius: BorderRadius.circular(12)),
-                //   ),
-                // ),
-
-                const SizedBox(height: 20),
-
-                // // Logout Button
-                // ElevatedButton.icon(
-                //   onPressed: () => ref.read(authProvider.notifier).logout(ref),
-                //   icon: const Icon(Icons.logout),
-                //   label: const Text('Logout'),
-                //   style: ElevatedButton.styleFrom(
-                //     backgroundColor: Colors.redAccent,
-                //     foregroundColor: Colors.white,
-                //     padding: const EdgeInsets.symmetric(
-                //         horizontal: 28, vertical: 14),
-                //     shape: RoundedRectangleBorder(
-                //         borderRadius: BorderRadius.circular(14)),
-                //   ),
-                // ),
-                Spacer(),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () =>
-                        ref.read(authProvider.notifier).logout(ref, context),
-                    icon: const Icon(Icons.logout, color: Colors.black),
-                    label: const Text(
-                      'Logout',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xff03FFE2),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 0,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           );
         },

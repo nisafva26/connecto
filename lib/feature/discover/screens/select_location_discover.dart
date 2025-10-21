@@ -7,6 +7,7 @@ import 'dart:ui';
 import 'package:connecto/feature/discover/widgets/horizontal_location_card.dart';
 import 'package:connecto/feature/discover/widgets/location_card.dart';
 import 'package:connecto/feature/discover/widgets/location_search_card_skeleton.dart';
+import 'package:connecto/feature/gatherings/widgets/custom_marker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -269,8 +270,8 @@ class _SelectLocationScreenState extends State<SelectLocationScreen>
         final lat = place.geometry!.location.lat;
         final lng = place.geometry!.location.lng;
 
-        final markerImage = await _generateNumberedMarker(i + 1); // index + 1
-        // final markerImage =
+        final markerImage = await createMarkerFromActivity(selectedCategory??''); // index + 1
+        // final markerImage =}
         //     await _generateNumberedMarkerWithLabel(i + 1, place.name);
 
         // searchAnnotationManager?.create(map.PointAnnotationOptions(

@@ -238,6 +238,45 @@ class GatheringCard extends StatelessWidget {
                                         width: 20,
                                       ),
                                       // Spacer(),
+                                      gathering.status=='cancelled'? Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 2),
+                                              decoration: ShapeDecoration(
+                                                color: Colors.red,
+                                                shape: RoundedRectangleBorder(
+                                                  side: BorderSide(
+                                                    width: 1,
+                                                    color:
+                                                         Colors.red,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.center,
+                                                children: [
+                                                  Text(
+                                                    'Cancelled',
+                                                    textAlign: TextAlign.center,
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 12,
+                                                      fontFamily: 'Inter',
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                      height: 1.50,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ):
                                       isPending
                                           ? Container(
                                               padding:

@@ -122,6 +122,26 @@ class _BondScreenState extends ConsumerState<BondScreen> {
     _checkPendingGatheringsIfNeeded();
   }
 
+
+ // 💡 KEY FIX: Handle new widget configuration (new 'extra' index)
+  @override
+  void didUpdateWidget(covariant BondScreen oldWidget) {
+
+    super.didUpdateWidget(oldWidget);
+    log('====inside did change dependiecnies-=');
+    
+    // Check if the initialTabIndex has changed.
+    if (widget.initialTabIndex != oldWidget.initialTabIndex) {
+      // 1. Update the internal state
+      setState(() {
+        _selectedTabIndex = widget.initialTabIndex;
+      });
+
+      // 2. Programmatically animate/jump to the new tab/page
+      // Use jumpToPage for instant switch, or animateToPage for smooth transition
+       _selectedTabIndex = widget.initialTabIndex;
+    }
+  }
   Future<void> _checkPendingGatheringsIfNeeded() async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final userDoc =

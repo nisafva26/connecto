@@ -154,7 +154,7 @@ class GatheringModel {
         id: doc.id,
         name: data['name'],
         eventType: data['eventType'],
-        hostId: data['hostId'],
+        hostId: data['hostId'] ?? '',
         isRecurring: data['isRecurring'],
         recurrenceType: data['recurrenceType'],
         dateTime: (data['dateTime'] as Timestamp).toDate(),

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+12
+version: 1.0.0+16
 
 environment:
   sdk: ^3.6.1
@@ -43,9 +43,11 @@ dependencies:
     sdk: flutter
   flutter_animate: ^4.5.2
   flutter_bounceable: ^1.2.0
+  flutter_cache_manager: ^3.4.1
   flutter_contacts: ^1.1.9+2
   flutter_dotenv: ^5.2.1
   flutter_google_maps_webservices: ^1.1.1
+  # flutter_launcher_icons: ^0.14.4
   flutter_local_notifications: ^19.2.1
   flutter_onboarding_slider: ^1.0.11
   flutter_rating_bar: ^4.0.1
@@ -63,14 +65,14 @@ dependencies:
   intl_phone_field: ^3.2.0
   loading_indicator: ^3.1.1
   lottie: ^3.3.0
-  # mapbox_gl: ^0.16.0
-  mapbox_maps_flutter: ^2.6.1
+  mapbox_maps_flutter: ^2.11.0
   mime: ^2.0.0
   path: ^1.9.1
   permission_handler: ^11.4.0
   pinput: ^5.0.1
   pulsator: ^1.0.0+2
   rxdart: ^0.27.7
+  shared_preferences: ^2.5.3
   shimmer: ^3.0.0
   smooth_page_indicator: ^1.2.1
   url_launcher: ^6.3.1
@@ -81,8 +83,15 @@ dependencies:
 
 dev_dependencies:
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  
+  image_path: "assets/images/connect_icon.png"    
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -70,7 +70,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (selectedCountry == null) {
       final locale = PlatformDispatcher.instance.locale;
       final countryCode = locale.countryCode; // e.g., 'AE'
-      
 
       log('local country code : $countryCode');
       log('before country example lenght : $countryPhoneLength');
@@ -147,28 +146,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           return Column(
+            // mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0)
-                      .copyWith(top: 40),
-                  child: IntrinsicHeight(
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 500),
-                      transitionBuilder: (widget, animation) {
-                        return FadeTransition(
-                            opacity: animation, child: widget);
-                      },
-                      child: (authState == AuthState.otpSent ||
-                              authState == AuthState.otpError ||
-                              authState == AuthState.verifying)
-                          ? buildOTPInput()
-                          : buildPhoneNumberInput(authState),
-                    ),
+              SingleChildScrollView(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0)
+                    .copyWith(top: 40),
+                child: IntrinsicHeight(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 500),
+                    transitionBuilder: (widget, animation) {
+                      return FadeTransition(opacity: animation, child: widget);
+                    },
+                    child: (authState == AuthState.otpSent ||
+                            authState == AuthState.otpError ||
+                            authState == AuthState.verifying)
+                        ? buildOTPInput()
+                        : buildPhoneNumberInput(authState),
                   ),
                 ),
               ),
+              Spacer(),
+
               buildCustomNumberPad(), // stays fixed below
+           
               const SizedBox(height: 10),
             ],
           );
@@ -200,42 +200,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 fontWeight: FontWeight.w400,
                 color: Colors.grey[400])),
         SizedBox(height: 30),
-        // IntlPhoneField(
-        //   controller: phoneController,
-        //   disableLengthCheck: true,
-        //   keyboardType: TextInputType.none,
-        //   decoration: InputDecoration(
-        //     filled: true,
-        //     fillColor: Color(0xFF091F1E),
-        //     labelText: 'Phone Number',
-        //     floatingLabelBehavior: FloatingLabelBehavior.never,
-        //     labelStyle: TextStyle(
-        //         color: Colors.white70,
-        //         fontSize: 16,
-        //         fontWeight: FontWeight.w400),
-        //     enabledBorder: OutlineInputBorder(
-        //       borderRadius: BorderRadius.circular(12),
-        //       borderSide: BorderSide(color: Colors.white24, width: 1.5),
-        //     ),
-        //     focusedBorder: OutlineInputBorder(
-        //       borderRadius: BorderRadius.circular(12),
-        //       borderSide: BorderSide(color: Color(0xFF03FFE2), width: 2),
-        //     ),
-        //     contentPadding: EdgeInsets.symmetric(vertical: 13, horizontal: 16),
-        //   ),
-        //   initialCountryCode: 'IN',
-        //   // onChanged: (phone) {
-        //   //   _validatePhoneNumber(phone.completeNumber, phone.isValidNumber());
-        //   // },
-        //   onCountryChanged: (value) {
-        //     setState(() {
-        //       countryPhoneLength = value.minLength;
-        //       countryPhoneCode = value.dialCode;
-        //     });
-        //     log('country phone length : $countryPhoneLength');
-        //     log('country phone code : $countryPhoneCode');
-        //   },
-        // ),
 
         /// Input row
         Row(
@@ -341,7 +305,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         //     },
         //     child: Text('Open')),
         // Spacer(),
-        SizedBox(height: 30),
+        SizedBox(height: 43),
         ContinueButtonWithLoading(
           isLoading: authState == AuthState.sendingOtp,
           onPressed:
@@ -350,6 +314,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               //     :
               _onContinuePressed,
         ),
+//         TextButton(
+//   onPressed: () {
+//     context.read(isGuestProvider.notifier).state = true;
+//     context.go('/discover'); // into the shell, Discover tab
+//   },
+//   child: const Text('Continue without login'),
+// ),
         SizedBox(height: 20),
       ],
     );
@@ -488,6 +459,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final authState = ref.watch(authProvider); // Get the current auth state
 
     return Container(
+      
       padding: EdgeInsets.symmetric(horizontal: 15).copyWith(top: 0),
       child: GridView.builder(
         padding: EdgeInsets.symmetric(vertical: 8).copyWith(bottom: 18),
@@ -497,7 +469,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           crossAxisCount: 3,
           mainAxisSpacing: 4,
           crossAxisSpacing: 4,
-          childAspectRatio: 120 / 78,
+          childAspectRatio: 150 / 78,
         ),
         itemCount: keys.length,
         itemBuilder: (context, index) {

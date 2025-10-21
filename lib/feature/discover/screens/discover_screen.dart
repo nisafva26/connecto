@@ -10,7 +10,10 @@ import 'package:connecto/feature/dashboard/widgets/common_sliver_appbar.dart';
 import 'package:connecto/feature/dashboard/widgets/common_transparent_appbar.dart';
 import 'package:connecto/feature/dashboard/widgets/greetings_sliver_apparbar.dart';
 import 'package:connecto/feature/discover/data/activity_model.dart';
+import 'package:connecto/feature/discover/helpers/photo_cache_helper.dart';
+import 'package:connecto/feature/discover/helpers/place_cache_helper.dart';
 import 'package:connecto/feature/discover/widgets/activity_strip.dart';
+import 'package:connecto/feature/discover/widgets/cache_data_googleplaces.dart';
 import 'package:connecto/feature/discover/widgets/category_card_shimmer.dart';
 import 'package:connecto/feature/discover/widgets/parallax_background.dart';
 import 'package:connecto/feature/discover/widgets/parallax_horizontal_image.dart';
@@ -62,56 +65,200 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
 
   String? selectedActivity;
   final subtitleColor = const Color(0xff9DA5A5);
-  Future<Position> getCurrentPosition() async {
-    LocationPermission permission = await Geolocator.checkPermission();
-    // Geolocator.requestPermission();
-    log('permission : $permission');
+  // Future<Position> getCurrentPosition() async {
+  //   LocationPermission permission = await Geolocator.checkPermission();
+  //   // Geolocator.requestPermission();
+  //   log('permission : $permission');
 
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      permission = await Geolocator.requestPermission();
-      if (permission != LocationPermission.always &&
-          permission != LocationPermission.whileInUse) {
-        throw Exception("Location permission not granted");
+  //   if (permission == LocationPermission.denied ||
+  //       permission == LocationPermission.deniedForever) {
+  //     permission = await Geolocator.requestPermission();
+  //     if (permission != LocationPermission.always &&
+  //         permission != LocationPermission.whileInUse) {
+  //       throw Exception("Location permission not granted");
+  //     }
+  //   }
+  //   final position = await Geolocator.getCurrentPosition();
+  //   log('======cur pos in fn : $position');
+  //   return position;
+  // }
+
+  Future<Position> getCurrentPosition() async {
+  // 1️⃣ Check if location services are enabled
+  bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  if (!serviceEnabled) {
+    throw Exception("Location services are disabled");
+  }
+
+  // 2️⃣ Check and request permission if needed
+  LocationPermission permission = await Geolocator.checkPermission();
+
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied) {
+      throw Exception("Location permission denied");
+    }
+  }
+
+  if (permission == LocationPermission.deniedForever) {
+    throw Exception(
+        "Location permissions are permanently denied, please enable them from settings.");
+  }
+
+  // 3️⃣ Now safely get the position
+  return await Geolocator.getCurrentPosition(
+    // desiredAccuracy: LocationAccuracy.high,
+  );
+}
+
+
+  /// Optimized: cache-first, smaller radius, limit results.
+  Future<List<CategoryPlaces>> fetchSuggestedDiscoverPlacesOptimized(
+    Position currentPosition, {
+    // tuning knobs
+    List<String> categories = const [
+      'Desert camping',
+      'Padel Tennis',
+      'Sheesha Longue',
+      'Football',
+    ],
+    int radiusMeters = 3000, // ↓ from 10km → 3km
+    int maxResultsPerCategory = 6, // show only what you need
+    Duration cacheTtl = const Duration(hours: 12), // refresh twice a day
+  }) async {
+    final places = GoogleMapsPlaces(apiKey: googleApiKey);
+
+    final cache = PlacesCache();
+    final cacheKey = cache.key(
+      categories: categories,
+      lat: currentPosition.latitude,
+      lng: currentPosition.longitude,
+      radius: radiusMeters,
+      maxPerCategory: maxResultsPerCategory,
+    );
+
+    // 1) Cache-first
+    final cached = cache.get(cacheKey, cacheTtl);
+    if (cached != null) return cached;
+
+    // 2) Fetch minimal fresh data (sequential to avoid bursty costs)
+    final List<CategoryPlaces> out = [];
+    final loc = Location(
+      lat: currentPosition.latitude,
+      lng: currentPosition.longitude,
+    );
+
+    for (final category in categories) {
+      final resp = await places.searchByText(
+        category,
+        location: loc,
+        radius: radiusMeters,
+        // rankby cannot be used with radius + keyword together in some endpoints,
+        // Text Search uses relevance by default which is fine here.
+        // If you switch to NearbySearch, you can play with rankby=prominence/distance.
+      );
+
+      if (resp.isOkay && resp.results.isNotEmpty) {
+        final trimmed = resp.results.take(maxResultsPerCategory).toList();
+        out.add(CategoryPlaces(category: category, results: trimmed));
+      } else {
+        out.add(CategoryPlaces(category: category, results: const []));
       }
     }
-    final position = await Geolocator.getCurrentPosition();
-    log('cur pos in fn : $position');
-    return position;
+
+    // 3) Save to cache
+    cache.put(cacheKey, out);
+    return out;
   }
 
   Future<List<CategoryPlaces>> fetchSuggestedDiscoverPlaces(
-      Position currentPosition) async {
-    final GoogleMapsPlaces places = GoogleMapsPlaces(apiKey: googleApiKey);
+    Position currentPosition, {
+    List<String> categories = const [
+      'Desert camping',
+      'Padel Tennis',
+      'Sheesha Longue',
+      'Football',
+    ],
+    int radiusMeters = 3000,
+    int maxResultsPerCategory = 6,
+    Duration cacheTtl = const Duration(hours: 12),
+  }) async {
+    log('4.=====inside fetch suggestions===');
+    final cacheKey = PlacesCacheHelper.buildKey(
+      categories: categories,
+      lat: currentPosition.latitude,
+      lng: currentPosition.longitude,
+      radius: radiusMeters,
+      maxPerCategory: maxResultsPerCategory,
+    );
 
-    final List<String> categories = [
-      "Desert camping",
-      "Padel Tennis",
-      "Sheesha Longue",
-      "Football",
-    ];
+    // 1) Try cache
+    final cached = await PlacesCacheHelper.load(cacheKey, ttl: cacheTtl);
+    log("==chached places : $cached");
+    if (cached != null) return cached;
+    log('==places not in cache====');
 
-    final List<CategoryPlaces> categorizedResults = [];
+    // 2) Fetch fresh
+    final List<CategoryPlaces> out = [];
+    final loc = Location(
+      lat: currentPosition.latitude,
+      lng: currentPosition.longitude,
+    );
+
+    final places = GoogleMapsPlaces(apiKey: googleApiKey);
 
     for (final category in categories) {
-      final PlacesSearchResponse response = await places.searchByText(
+      final resp = await places.searchByText(
         category,
-        location: Location(
-          lat: currentPosition.latitude,
-          lng: currentPosition.longitude,
-        ),
-        radius: 10000, // 10km
+        location: loc,
+        radius: radiusMeters,
       );
 
-      if (response.isOkay && response.results.isNotEmpty) {
-        categorizedResults.add(
-          CategoryPlaces(category: category, results: response.results),
-        );
+      if (resp.isOkay && resp.results.isNotEmpty) {
+        final trimmed = resp.results.take(maxResultsPerCategory).toList();
+        out.add(CategoryPlaces(category: category, results: trimmed));
+      } else {
+        out.add(CategoryPlaces(category: category, results: const []));
       }
     }
 
-    return categorizedResults;
+    // 3) Save cache
+    await PlacesCacheHelper.save(cacheKey, out);
+    return out;
   }
+
+  // Future<List<CategoryPlaces>> fetchSuggestedDiscoverPlaces(
+  //     Position currentPosition) async {
+  //   final GoogleMapsPlaces places = GoogleMapsPlaces(apiKey: googleApiKey);
+
+  //   final List<String> categories = [
+  //     "Desert camping",
+  //     "Padel Tennis",
+  //     "Sheesha Longue",
+  //     "Football",
+  //   ];
+
+  //   final List<CategoryPlaces> categorizedResults = [];
+
+  //   for (final category in categories) {
+  //     final PlacesSearchResponse response = await places.searchByText(
+  //       category,
+  //       location: Location(
+  //         lat: currentPosition.latitude,
+  //         lng: currentPosition.longitude,
+  //       ),
+  //       radius: 10000, // 10km
+  //     );
+
+  //     if (response.isOkay && response.results.isNotEmpty) {
+  //       categorizedResults.add(
+  //         CategoryPlaces(category: category, results: response.results),
+  //       );
+  //     }
+  //   }
+
+  //   return categorizedResults;
+  // }
 
   List<CategoryPlaces> placeSuggestions = [];
   bool isPlaceLoading = true;
@@ -125,15 +272,20 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
   @override
   void initState() {
     super.initState();
+    log('1. inside initstate');
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      log('2.===== inside widgets binding====');
       _loadSuggestedPlaces();
     });
   }
 
   Future<void> _loadSuggestedPlaces() async {
+    log('3....inside _load');
     try {
       final position = await getCurrentPosition(); // Ensure permissions handled
+      log('3.5 : ====== position : $position');
       final results = await fetchSuggestedDiscoverPlaces(position);
+      log('5..results : $results');
       setState(() {
         placeSuggestions = results;
         isPlaceLoading = false;
@@ -685,7 +837,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                       //     },
                       //   ),
                       // ),
-                      SizedBox(height: 16,),
+                      SizedBox(
+                        height: 16,
+                      ),
 
                       publicGatheringAsync.when(
                         data: (publicList) => publicList.isEmpty
@@ -785,6 +939,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
     const double _imageHeight = 160; // your ParallaxX height
     const double _seamHeight = 88; // how tall the glass band is
     const double _overlapUp = 26; // how far the band climbs into the image
+   
     return Padding(
       padding: const EdgeInsets.only(right: 16),
       child: Bounceable(
@@ -852,7 +1007,12 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                             topRight: Radius.circular(12),
                           ),
                           image: CachedNetworkImageProvider(
-                            'https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${gathering.photoRef}&key=$googleApiKey',
+                            // 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${gathering.photoRef}&key=$googleApiKey',
+                            placePhotoUrl(gathering.photoRef!,
+                                width: 200, apiKey: googleApiKey!),
+                            cacheManager: placePhotoCache,
+                            cacheKey: placePhotoCacheKey(gathering.photoRef!,
+                                width: 200),
                           ),
                           fit: BoxFit.cover,
                         ),
